@@ -161,6 +161,7 @@ export default tseslint.config(
       '*.min.js',
       'app/generated/**',
       'prisma/migrations/**',
+      'src/generated/**',
     ],
   }
 );
