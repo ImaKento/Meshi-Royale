@@ -12,6 +12,7 @@ export default function Home() {
           height={38}
           priority
         />
+        <h1>Welcome to Tanaka Strong Hold !!</h1>
         <ol className='list-inside list-decimal text-center font-mono text-sm/6 sm:text-left'>
           <li className='mb-2 tracking-[-.01em]'>
             Get started by editing{' '}
