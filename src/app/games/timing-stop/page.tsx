@@ -1,7 +1,7 @@
 'use client';
 
-import { useSearchParams } from 'next/navigation';
 import React, { Suspense, useEffect, useRef, useState } from 'react';
+import { useSearchParams, useRouter } from 'next/navigation';
 
 import { supabase } from '../../../lib/supabase';
 
@@ -75,6 +75,7 @@ function buildLeaderboard(rows: GameResultRow[], order: 'asc' | 'desc' = 'asc') 
 function TimingStopBlindComponent() {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const rafRef = useRef<number | null>(null);
+  const router = useRouter();
 
   const [state, setState] = useState<GameState>({ kind: 'idle' });
   const [bestErrorMs, setBestErrorMs] = useState<number>(Infinity);
@@ -543,6 +544,20 @@ function TimingStopBlindComponent() {
           </div>
         </div>
       )}
+      {state.kind === 'result' && (
+        <div className='fixed bottom-0 left-1/2 z-20 w-full max-w-sm -translate-x-1/2 px-4 pb-[env(safe-area-inset-bottom)] sm:px-0'>
+          <div className='mb-4 flex items-center justify-center gap-3 sm:mb-6'>
+            <button
+              type='button'
+              onClick={() => router.push('/')}
+              className='inline-flex items-center justify-center rounded-full bg-slate-900 px-6 py-3 text-sm font-semibold text-white shadow-lg transition hover:bg-slate-800 focus:outline-none focus-visible:ring-4 focus-visible:ring-slate-400/50'
+            >
+              ホームへ戻る
+            </button>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }
