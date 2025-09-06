@@ -12,9 +12,11 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '../components/ui/dialog';
+import { useUserStore } from '../store/userStore';
 
 export default function Home() {
   const router = useRouter();
+  const { setUserId } = useUserStore();
   const [roomCode, setRoomCode] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
@@ -86,6 +88,7 @@ export default function Home() {
 
       if (response.ok) {
         const userId = await createUser();
+        setUserId(userId);
         await createRoomUser({ roomCode: newRoomCode, userId });
         router.push(`/room/${newRoomCode}`);
       } else {
@@ -110,6 +113,7 @@ export default function Home() {
 
       if (response.ok) {
         const userId = await createUser();
+        setUserId(userId);
         await createRoomUser({ roomCode, userId });
         router.push(`/room/${roomCode}`);
       } else {

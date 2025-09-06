@@ -37,7 +37,6 @@ model Room {
   roomUsers RoomUser[]
 }
 
-
 model RoomUser {
   roomId    String   @map("room_id")
   userId    String   @map("user_id")
