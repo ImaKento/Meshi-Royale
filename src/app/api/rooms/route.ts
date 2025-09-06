@@ -7,8 +7,6 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const roomCode = searchParams.get('roomCode');
 
-    console.log('roomCode', roomCode);
-
     if (roomCode) {
       // 特定のルームコードでルームを検索
       const room = await prisma.room.findUnique({

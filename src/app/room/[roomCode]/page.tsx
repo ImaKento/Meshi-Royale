@@ -6,6 +6,7 @@ import { use, useEffect, useState } from 'react';
 import { Button } from '../../../components/ui/button';
 import { Card, CardContent } from '../../../components/ui/card';
 import { Input } from '../../../components/ui/input';
+import { useUserStore } from '../../../store/userStore';
 
 interface Room {
   id: string;
@@ -32,12 +33,36 @@ interface RoomUser {
 
 function RoomPage({ params }: { params: Promise<{ roomCode: string }> }) {
   const router = useRouter();
+  const { roomCode } = use(params);
+  const { userId } = useUserStore();
+
   const [room, setRoom] = useState<Room | null>(null);
   const [roomUsers, setRoomUsers] = useState<RoomUser[]>([]);
   const [isInitialLoading, setIsInitialLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
-  const { roomCode } = use(params);
+
+  const removeRoomUser = async () => {
+    try {
+      const response = await fetch('/api/room-users', {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ roomCode, userId }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        router.push('/');
+      } else {
+        alert(data.error || 'ルームからの退出に失敗しました');
+      }
+    } catch (error) {
+      alert('ルームからの退出に失敗しました。' + error);
+    }
+  };
 
   useEffect(() => {
     const fetchRoomData = async (isInitial = false) => {
@@ -56,10 +81,9 @@ function RoomPage({ params }: { params: Promise<{ roomCode: string }> }) {
           setRoomUsers(data.room.roomUsers || []);
           setLastUpdated(new Date());
         } else {
-          console.error('ルーム取得エラー:', data.error);
         }
       } catch (error) {
-        console.error('ルーム取得エラー:', error);
+        alert('ルームの取得に失敗しました。' + error);
       } finally {
         if (isInitial) {
           setIsInitialLoading(false);
@@ -97,6 +121,7 @@ function RoomPage({ params }: { params: Promise<{ roomCode: string }> }) {
         <Button
           className='mt-4'
           onClick={() => {
+            removeRoomUser();
             router.push('/');
           }}
         >
@@ -127,11 +152,18 @@ function RoomPage({ params }: { params: Promise<{ roomCode: string }> }) {
             <Button
               className='mt-4'
               onClick={() => {
-                // ランダムでゲームを選択
+                // roomCodeから一意にゲームを決定
                 const games = ['/games/timing-stop', '/games/button-mashing'];
 
-                const randomGame = games[Math.floor(Math.random() * games.length)];
-                router.push(randomGame);
+                // roomCodeをハッシュ化して一意なインデックスを生成
+                const hash = roomCode.split('').reduce((acc, char, index) => {
+                  return acc + char.charCodeAt(0) * (index + 1);
+                }, 0);
+
+                const gameIndex = Math.abs(hash) % games.length;
+                const selectedGame = games[gameIndex];
+
+                router.push(selectedGame);
               }}
             >
               ゲームに進む
