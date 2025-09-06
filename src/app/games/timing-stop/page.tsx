@@ -1,6 +1,8 @@
 'use client';
 
-import React, { useEffect, useRef, useState } from 'react';
+import React, { Suspense, useEffect, useRef, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
+import { supabase } from '../../../lib/supabase';
 
 // Timing Stop (Start → 3s countdown → Run → Result, one-shot, light theme)
 
@@ -10,6 +12,15 @@ type GameState =
   | { kind: 'running'; startedAt: number }
   // absErrorMs は誤差の絶対値(ms)のみを保持（±は表示時に算出）
   | { kind: 'result'; elapsedMs: number; targetMs: number; absErrorMs: number };
+
+type GameResultRow = {
+  id?: string;
+  userId?: string;
+  user?: { name?: string } | null;
+  scores?: number; // ← API上のスコア。ここでは absErrorMs (小さいほど良い)
+  created_at?: string; // あればタイブレークで使用
+  createdAt?: string;  // あればタイブレークで使用
+};
 
 const BASE_HEIGHT = 260;
 const INFOBAR_HEIGHT = 64;
@@ -28,12 +39,57 @@ function formatSignedSeconds(ms: number) {
   return `${sign}${Math.abs(s).toFixed(3)}s`;
 }
 
-export default function TimingStopBlind() {
+function formatAbsSeconds(ms: number) {
+  return `${(ms / 1000).toFixed(3)}s`;
+}
+
+// ===== ランキング生成（タイ処理あり） =====
+// order: 'asc' は小さいほど上位（例: 誤差ms）、'desc' は大きいほど上位（例: クリック数）
+function buildLeaderboard(rows: GameResultRow[], order: 'asc' | 'desc' = 'asc') {
+  const sorted = rows.slice().sort((a, b) => {
+    const as = Number(a?.scores ?? (order === 'asc' ? Infinity : -Infinity));
+    const bs = Number(b?.scores ?? (order === 'asc' ? Infinity : -Infinity));
+    if (as !== bs) return order === 'asc' ? as - bs : bs - as;
+    // タイブレーク: created_at/createdAt → id の順
+    const at = a.created_at ?? a.createdAt ?? '';
+    const bt = b.created_at ?? b.createdAt ?? '';
+    if (at && bt && at !== bt) return String(at).localeCompare(String(bt));
+    return String(a.id ?? '').localeCompare(String(b.id ?? ''));
+  });
+  // 競技順位 (1,2,2,4) 方式
+  const ranks: number[] = new Array(sorted.length);
+  let lastScore: number | null = null;
+  let lastRank = 0;
+  for (let i = 0; i < sorted.length; i++) {
+    const s = Number(sorted[i]?.scores ?? (order === 'asc' ? Infinity : -Infinity));
+    if (lastScore === null || s !== lastScore) {
+      lastRank = i + 1;
+      lastScore = s;
+    }
+    ranks[i] = lastRank;
+  }
+  return { sorted, ranks };
+}
+
+function TimingStopBlindComponent() {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const rafRef = useRef<number | null>(null);
 
   const [state, setState] = useState<GameState>({ kind: 'idle' });
   const [bestErrorMs, setBestErrorMs] = useState<number>(Infinity);
+
+  // ===== URL / ルーム / リアルタイム関連 =====
+  const searchParams = useSearchParams();
+  const userId = searchParams.get('userId');
+  const roomCode = searchParams.get('roomCode');
+  const joindUserCount = searchParams.get('joindUserCount'); // 互換のためそのまま
+  const totalPlayers = parseInt(joindUserCount || '0', 10);
+  const gameType = 'timing-stop';
+
+  const [roomId, setRoomId] = useState<string | null>(null);
+  const [gameResults, setGameResults] = useState<GameResultRow[]>([]);
+  const [allDone, setAllDone] = useState(false);
+  const postedRef = useRef(false); // 結果POSTの多重防止
 
   // ベスト誤差の復元（任意）
   useEffect(() => {
@@ -46,6 +102,83 @@ export default function TimingStopBlind() {
   const targetMs = TARGET_SEC * 1000;
   const visibleUntilMs = visibleUntilMsFor(targetMs);
 
+  // ===== ルームID解決 =====
+  useEffect(() => {
+    if (!roomCode) return;
+    let aborted = false;
+    (async () => {
+      try {
+        const res = await fetch(`/api/rooms?roomCode=${encodeURIComponent(roomCode)}`);
+        const data = await res.json();
+        if (!aborted && res.ok && data?.room?.id) setRoomId(data.room.id);
+      } catch (e) {
+        console.error('ルームID取得エラー:', e);
+      }
+    })();
+    return () => {
+      aborted = true;
+    };
+  }, [roomCode]);
+
+  // ===== 初期結果取得（ガードなしで allDone 判定）=====
+  useEffect(() => {
+    if (!roomId) return;
+    (async () => {
+      try {
+        const resp = await fetch(
+          `/api/gameResults?roomId=${encodeURIComponent(roomId)}&gameType=${encodeURIComponent(gameType)}`
+        );
+        const data = await resp.json();
+        if (resp.ok && data?.gameResults) {
+          const list: GameResultRow[] = data.gameResults;
+          setGameResults(list);
+          if (list.length >= totalPlayers && totalPlayers > 0) setAllDone(true);
+        }
+      } catch (e) {
+        console.error('初期データ取得エラー:', e);
+      }
+    })();
+  }, [roomId, gameType, totalPlayers]);
+
+  // ===== Realtime購読（INSERT/UPDATEで最新取得）※サーバーフィルタなし・手動チェック =====
+  useEffect(() => {
+    if (!roomId) return;
+
+    const channel = supabase
+      .channel(`game-results-${roomId}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'GameResults' }, // ← ここではフィルタを外す
+        async (payload: any) => {
+          const n = payload?.new ?? payload?.record ?? {};
+          const payloadRoomId = n.roomId ?? n.room_id;
+          const payloadGameType = n.gameType ?? n.game_type;
+          if (payloadRoomId !== roomId) return;
+          if (payloadGameType !== gameType) return;
+
+          try {
+            const resp = await fetch(
+              `/api/gameResults?roomId=${encodeURIComponent(roomId)}&gameType=${encodeURIComponent(gameType)}`
+            );
+            const data = await resp.json();
+            if (resp.ok && data?.gameResults) {
+              const list: GameResultRow[] = data.gameResults;
+              setGameResults(list);
+              if (list.length >= totalPlayers && totalPlayers > 0) setAllDone(true); // ← state.kind ガードなし
+            }
+          } catch (e) {
+            console.error('Realtime データ取得エラー:', e);
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [roomId, gameType, totalPlayers]);
+
+  // ===== ゲーム遷移 =====
   function start() {
     if (state.kind !== 'idle') return;
     setState({ kind: 'countdown', endAt: performance.now() + 3000 });
@@ -73,7 +206,47 @@ export default function TimingStopBlind() {
     return () => clearTimeout(t);
   }, [state]);
 
-  // キーボード: 一回限り（resultでの再開なし）
+  // ===== 結果保存（INSERT/UPSERT → Realtimeで全員同期） =====
+  useEffect(() => {
+    if (state.kind !== 'result') return;
+    if (!userId || !roomId) return; // 単体プレイ時は保存しない
+    if (postedRef.current) return;
+
+    postedRef.current = true;
+    (async () => {
+      try {
+        const res = await fetch(`/api/gameResults`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            userId,
+            roomId,
+            gameType,
+            // スコアは absErrorMs（小さいほど良い）
+            scores: Math.round(state.absErrorMs),
+          }),
+        });
+        const data = await res.json();
+        if (!res.ok || !data?.ok) throw new Error(data?.error || `HTTP ${res.status}`);
+
+        // 直後に最新取得（保険）
+        const resp = await fetch(
+          `/api/gameResults?roomId=${encodeURIComponent(roomId)}&gameType=${encodeURIComponent(gameType)}`
+        );
+        const listJson = await resp.json();
+        if (resp.ok && listJson?.gameResults) {
+          const list: GameResultRow[] = listJson.gameResults;
+          setGameResults(list);
+          if (list.length >= totalPlayers && totalPlayers > 0) setAllDone(true); // ← ガードなし
+        }
+      } catch (e) {
+        console.error('ゲーム結果の保存に失敗:', e);
+        postedRef.current = false; // 失敗時は再試行可
+      }
+    })();
+  }, [state, userId, roomId, gameType, totalPlayers]);
+
+  // ===== キーボード（resultでの再開なし） =====
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if (e.key === ' ' || e.key === 'Enter') {
@@ -127,7 +300,6 @@ export default function TimingStopBlind() {
       ctx.textAlign = 'start';
     }
 
-    // 例：drawIdle
     function drawIdle(W: number, H: number) {
       if (!ctx) return;
       ctx.textAlign = 'center';
@@ -144,11 +316,10 @@ export default function TimingStopBlind() {
       const leftMs = state.kind === 'countdown' ? Math.max(0, state.endAt - now) : 0;
       const leftSec = Math.ceil(leftMs / 1000); // 3,2,1
 
-      // 追加：ベースライン固定 & 中央座標は整数にスナップ
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
 
-      // 等幅フォント系で数字の見た目ブレを抑制（太字72px）
+      // 太字72px 等幅
       ctx.fillStyle = '#111827';
       ctx.font = '800 72px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace';
 
@@ -156,7 +327,6 @@ export default function TimingStopBlind() {
       const cy = Math.round(H / 2 + 24);
       ctx.fillText(String(leftSec), cx, cy);
 
-      // サブテキストも整数座標に
       ctx.font = '600 16px ui-sans-serif, system-ui';
       ctx.fillText('まもなく開始…', cx, Math.round(H - 28));
     }
@@ -225,6 +395,7 @@ export default function TimingStopBlind() {
     };
   }, [state, visibleUntilMs, targetMs]);
 
+  // ===== UI =====
   return (
     // 画面全体。上ヘッダー/下アクションの固定分だけ余白を確保
     <div className='min-h-[100dvh] overflow-x-hidden bg-white [padding-top:calc(4rem+env(safe-area-inset-top))] [padding-bottom:calc(6rem+env(safe-area-inset-bottom))] text-black sm:pb-28'>
@@ -242,6 +413,91 @@ export default function TimingStopBlind() {
         <div className='overflow-hidden rounded-2xl shadow ring-1 ring-slate-200'>
           <canvas ref={canvasRef} style={{ width: '100%', height: BASE_HEIGHT }} />
         </div>
+
+        {/* 結果/ランキング（ルーム連携時） */}
+        {state.kind === 'result' && (
+          <div className='mt-4 rounded-2xl border border-slate-200 bg-white p-6 shadow'>
+            <h2 className='text-slate-900 text-2xl font-bold mb-4'>結果</h2>
+            <div className='grid gap-2'>
+              <div className='flex items-baseline gap-3'>
+                <span className='text-slate-500 text-sm'>あなたの計測</span>
+                <span className='text-slate-900 text-xl font-extrabold'>
+                  {(state.elapsedMs / 1000).toFixed(3)}s
+                </span>
+              </div>
+              <div className='flex items-baseline gap-3'>
+                <span className='text-slate-500 text-sm'>誤差</span>
+                <span className='text-slate-900 text-xl font-extrabold'>
+                  {formatAbsSeconds(state.absErrorMs)}
+                </span>
+              </div>
+            </div>
+
+            {/* ルーム未連携の注意 */}
+            {!roomId || !totalPlayers ? (
+              <p className='mt-4 text-slate-600 text-sm'>
+                ルーム連携なしの単体プレイです。URL に <code>userId</code>, <code>roomCode</code>,{' '}
+                <code>joindUserCount</code> を付けると対戦待ち＆最終結果が有効になります。
+              </p>
+            ) : !allDone ? (
+              <p className='mt-4 text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-4 py-3 text-sm'>
+                他のプレイヤーの完了を待っています…
+                <br />
+                参加人数: {totalPlayers} / 受信済: {gameResults.length}
+              </p>
+            ) : (
+              <div className='mt-6'>
+                <h3 className='text-slate-900 font-semibold mb-3'>🏁 最終結果（誤差が小さい順）</h3>
+                <div className='space-y-2'>
+                  {(() => {
+                    const { sorted, ranks } = buildLeaderboard(gameResults, 'asc');
+                    const myIdx = sorted.findIndex(r => r.userId === userId);
+                    const myRank = myIdx >= 0 ? ranks[myIdx] : undefined;
+                    return (
+                      <>
+                        {typeof myRank === 'number' && (
+                          <div className='mb-3 text-slate-700 text-sm'>
+                            あなたの順位: <span className='font-bold'>{myRank}位</span>
+                          </div>
+                        )}
+                        {sorted.map((r: GameResultRow, idx: number) => {
+                          const isMe = r.userId === userId;
+                          const rank = ranks[idx];
+                          return (
+                            <div
+                              key={r.id ?? `${r.userId}-${idx}`}
+                              className={`flex items-center justify-between rounded-lg border p-3 ${
+                                isMe
+                                  ? 'border-emerald-300 bg-emerald-50'
+                                  : 'border-slate-200 bg-slate-50'
+                              }`}
+                            >
+                              <div className='flex items-center gap-3'>
+                                <span className='text-slate-500 text-sm w-8 text-right'>
+                                  {rank}位
+                                </span>
+                                <span className='text-slate-900 font-semibold'>
+                                  {r?.user?.name || 'ゲスト'}
+                                  {isMe ? '（あなた）' : ''}
+                                </span>
+                              </div>
+                              <div className='text-right'>
+                                <div className='text-slate-900 font-bold'>
+                                  {formatAbsSeconds(Number(r?.scores ?? 0))}
+                                </div>
+                                <div className='text-slate-500 text-xs'>誤差</div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </>
+                    );
+                  })()}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
       </main>
 
       {/* 画面中央下に固定：丸ボタン単体（背後の長方形カードは削除） */}
@@ -278,5 +534,13 @@ export default function TimingStopBlind() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function TimingStopBlind() {
+  return (
+    <Suspense fallback={<div>Loading...</div>}>
+      <TimingStopBlindComponent />
+    </Suspense>
   );
 }
