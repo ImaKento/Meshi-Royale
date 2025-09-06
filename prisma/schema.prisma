@@ -18,6 +18,7 @@ datasource db {
 model User {
   id        String   @id @default(uuid())
   name      String   @default("ゲスト")
+  candidateStore String? @map("candidate_store")
   email     String?
   password  String?
   createdAt DateTime @default(now())
@@ -37,7 +38,6 @@ model Room {
 
   roomUsers RoomUser[]
 }
-
 
 model RoomUser {
   roomId    String   @map("room_id")
