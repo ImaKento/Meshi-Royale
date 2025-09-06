@@ -9,7 +9,7 @@ import React, { useEffect, useRef, useState } from "react";
 type GameState =
   | { kind: "idle" }
   | { kind: "running"; startedAt: number }
-  //signedErrorMsにスコアを保存
+  // signedErrorMs: 誤差の絶対値(ms)を保持（＋/−の符号は表示時に算出）
   | { kind: "result"; elapsedMs: number; targetMs: number; signedErrorMs: number; rating: string };
 
 // --- Constants ---
@@ -54,12 +54,22 @@ export default function TimingStopBlind() {
   const lastRef = useRef<number | null>(null);
 
   const [state, setState] = useState<GameState>({ kind: "idle" });
-  const [targetSec, setTargetSec] = useState<number>(() =>
-    clampIntSeconds(Number(localStorage.getItem("timing_target_sec") ?? 10))
-  );
-  const [bestErrorMs, setBestErrorMs] = useState<number>(() =>
-    Number(localStorage.getItem("timing_best_error_ms") ?? Infinity)
-  );
+  // 初期値は即値。localStorage 復元はマウント後に行う（SSR安全）
+  const [targetSec, setTargetSec] = useState<number>(10);
+  const [bestErrorMs, setBestErrorMs] = useState<number>(Infinity);
+
+  // マウント後に localStorage から復元
+  useEffect(() => {
+    try {
+      if (typeof window === "undefined") return;
+      const savedTarget = localStorage.getItem("timing_target_sec");
+      if (savedTarget != null) setTargetSec(clampIntSeconds(Number(savedTarget)));
+      const savedBest = localStorage.getItem("timing_best_error_ms");
+      if (savedBest != null) setBestErrorMs(Number(savedBest));
+    } catch {
+      // Safari プライベート等の例外は無視
+    }
+  }, []);
 
   const targetMs = clampIntSeconds(targetSec) * 1000; // 整数秒→ms
   const visibleUntilMs = visibleUntilMsFor(targetMs);
@@ -68,19 +78,26 @@ export default function TimingStopBlind() {
     if (state.kind === "running") return;
     setState({ kind: "running", startedAt: performance.now() });
   }
+
   function stop() {
     if (state.kind !== "running") return;
     const now = performance.now();
     const elapsedMs = now - state.startedAt;
-    const signedErrorMs = elapsedMs - targetMs; // +: 遅い / −: 早い
-    const rating = ratingFor(Math.abs(signedErrorMs));
-    setState({ kind: "result", elapsedMs, targetMs, signedErrorMs, rating });
+    const signed = elapsedMs - targetMs;                // 符号つき誤差（表示専用）
+    const absErr = Math.abs(signed);                    // ← 保持するのは絶対値
+    const rating = ratingFor(absErr);
+    setState({ kind: "result", elapsedMs, targetMs, signedErrorMs: absErr, rating });
 
-    if (Math.abs(signedErrorMs) < bestErrorMs) {
-      setBestErrorMs(Math.abs(signedErrorMs));
-      localStorage.setItem("timing_best_error_ms", String(Math.abs(signedErrorMs)));
+    if (absErr < bestErrorMs) {
+      setBestErrorMs(absErr);
+      try {
+        if (typeof window !== "undefined") {
+          localStorage.setItem("timing_best_error_ms", String(absErr));
+        }
+      } catch {}
     }
   }
+
   function reset() {
     setState({ kind: "idle" });
   }
@@ -105,9 +122,12 @@ export default function TimingStopBlind() {
 
   // 永続化（整数秒で保存）
   useEffect(() => {
-    const normalized = clampIntSeconds(targetSec);
-    if (normalized !== targetSec) setTargetSec(normalized);
-    localStorage.setItem("timing_target_sec", String(normalized));
+    try {
+      if (typeof window === "undefined") return;
+      const normalized = clampIntSeconds(targetSec);
+      if (normalized !== targetSec) setTargetSec(normalized);
+      localStorage.setItem("timing_target_sec", String(normalized));
+    } catch {}
   }, [targetSec]);
 
   // --- Render ---
@@ -150,31 +170,31 @@ export default function TimingStopBlind() {
       ctx.textAlign = "start";
     }
 
-    // ★ 最終結果の表示：ビタ押しタイムを大きく、その行に誤差（±）も併記
-// 置き換え: 目標時間の下に誤差を表示
-  function drawResult(elapsedMs: number, signedErrorMs: number, _rating: string) {
-    const actual = (elapsedMs / 1000).toFixed(3) + "s";
-    const diffStr = formatSignedSeconds(signedErrorMs); // 例: "+0.247s" / "−0.081s"
-    const hint = signedErrorMs > 0 ? "遅い" : signedErrorMs < 0 ? "早い" : "ピタ";
+    // 最終結果: 1) 実測タイム（大） 2) 目標時間＋早い/遅い 3) 目標の下に誤差（±）
+    function drawResult(elapsedMs: number, absErrorMs: number, _rating: string) {
+      const actual = (elapsedMs / 1000).toFixed(3) + "s";
+      // 表示用の符号は elapsed と target の比較で決める
+      const signedDisplay = (elapsedMs - targetMs >= 0 ? +1 : -1) * absErrorMs;
+      const diffStr = formatSignedSeconds(signedDisplay);
+      const hint = signedDisplay > 0 ? "遅い" : signedDisplay < 0 ? "早い" : "ピタ";
 
-    ctx.textAlign = "center";
-    ctx.fillStyle = "#111827"; // ライトテーマ（ダークなら "#ffffff"）
+      ctx.textAlign = "center";
+      ctx.fillStyle = "#111827";
 
-    // 1行目：実測タイム（大）
-    ctx.font = "800 56px ui-sans-serif, system-ui";
-    ctx.fillText(actual, WIDTH / 2, HEIGHT / 2 - 8);
+      // 1行目：実測タイム（大）
+      ctx.font = "800 56px ui-sans-serif, system-ui";
+      ctx.fillText(actual, WIDTH / 2, HEIGHT / 2 - 8);
 
-    // 2行目：目標時間 + 早い/遅い
-    ctx.font = "600 18px ui-sans-serif, system-ui";
-    ctx.fillText(`目標時間: ${(targetMs / 1000).toFixed(0)}s  |  ${hint}`, WIDTH / 2, HEIGHT / 2 + 24);
+      // 2行目：目標時間 + 早い/遅い
+      ctx.font = "600 18px ui-sans-serif, system-ui";
+      ctx.fillText(`目標時間: ${(targetMs / 1000).toFixed(0)}s  |  ${hint}`, WIDTH / 2, HEIGHT / 2 + 24);
 
-    // 3行目：誤差（±表記）— 目標時間の下
-    ctx.font = "700 22px ui-sans-serif, system-ui";
-    ctx.fillText(`誤差: ${diffStr}`, WIDTH / 2, HEIGHT / 2 + 50);
+      // 3行目：誤差（±表記）— 目標時間の下
+      ctx.font = "700 22px ui-sans-serif, system-ui";
+      ctx.fillText(`誤差: ${diffStr}`, WIDTH / 2, HEIGHT / 2 + 50);
 
-    ctx.textAlign = "start";
-  }
-
+      ctx.textAlign = "start";
+    }
 
     function loop(ts: number) {
       if (lastRef.current == null) lastRef.current = ts;
@@ -277,12 +297,8 @@ export default function TimingStopBlind() {
             Start でタイマー開始。<span className="font-semibold">表示は 0.3×設定時間 を 1.0 秒刻みで切り上げ</span>た時点までです。
           </p>
           <ul className="list-disc ml-5 space-y-1">
-            <li>
-              Space / Enter でも Start/Stop、<span className="font-semibold">R</span> でリセット。
-            </li>
-            <li>
-              結果は <span className="font-semibold">ビタ押しタイム（大）</span> と <span className="font-semibold">誤差（±）</span> を同じ行に表示します。
-            </li>
+            <li>Space / Enter でも Start/Stop、<span className="font-semibold">R</span> でリセット。</li>
+            <li>結果は <span className="font-semibold">ビタ押しタイム（大）</span>、その下に <span className="font-semibold">目標時間</span>、さらに <span className="font-semibold">誤差（±）</span> を表示します。</li>
             <li>自己ベスト（最小誤差）はローカルに保存。</li>
           </ul>
         </aside>
