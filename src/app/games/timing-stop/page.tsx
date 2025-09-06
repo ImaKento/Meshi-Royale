@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useRef, useState } from 'react';
+import React, { Suspense, useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { supabase } from '../../../lib/supabase';
 
@@ -71,7 +71,7 @@ function buildLeaderboard(rows: GameResultRow[], order: 'asc' | 'desc' = 'asc') 
   return { sorted, ranks };
 }
 
-export default function TimingStopBlind() {
+function TimingStopBlindComponent() {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const rafRef = useRef<number | null>(null);
 
@@ -534,5 +534,13 @@ export default function TimingStopBlind() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function TimingStopBlind() {
+  return (
+    <Suspense fallback={<div>Loading...</div>}>
+      <TimingStopBlindComponent />
+    </Suspense>
   );
 }
