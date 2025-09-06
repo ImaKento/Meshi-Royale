@@ -9,25 +9,18 @@ type GameState =
   | { kind: "idle" }
   | { kind: "countdown"; endAt: number }
   | { kind: "running"; startedAt: number }
-  | { kind: "result"; elapsedMs: number; targetMs: number; signedErrorMs: number; rating: string };
+  // signedErrorMs は「誤差の絶対値(ms)」のみを保持（±は表示時に算出）
+  | { kind: "result"; elapsedMs: number; targetMs: number; signedErrorMs: number };
 
-const BASE_HEIGHT = 260;           // キャンバスのCSS高さ（px）※幅はコンテナに合わせる
-const INFOBAR_HEIGHT = 64;         // 上部グレーのバー高さ
-const TARGET_SEC = 10;             // 固定の目標時間（必要なら変更）
-
-const THRESHOLDS = { perfect: 15, great: 50, good: 150 };
+const BASE_HEIGHT = 260;      // キャンバスのCSS高さ（px）※幅はコンテナに合わせる
+const INFOBAR_HEIGHT = 64;    // 上部グレーのバー高さ
+const TARGET_SEC = 10;        // 固定の目標時間（必要なら変更）
 
 function visibleUntilMsFor(targetMs: number) {
   const raw = 0.3 * targetMs;
   const step = 1000;
-  const snapped = Math.ceil(raw / step) * step; // 切り上げ
+  const snapped = Math.ceil(raw / step) * step; // 1秒刻みで切り上げ
   return Math.max(step, snapped);
-}
-function ratingFor(absErrorMs: number) {
-  if (absErrorMs <= THRESHOLDS.perfect) return "Perfect";
-  if (absErrorMs <= THRESHOLDS.great) return "Great";
-  if (absErrorMs <= THRESHOLDS.good) return "Good";
-  return "Miss";
 }
 function formatSignedSeconds(ms: number) {
   const s = ms / 1000;
@@ -62,13 +55,14 @@ export default function TimingStopBlind() {
     const now = performance.now();
     const elapsedMs = now - state.startedAt;
     const absErr = Math.abs(elapsedMs - targetMs); // ← 誤差の絶対値のみ保持
-    const rating = ratingFor(absErr);
-    setState({ kind: "result", elapsedMs, targetMs, signedErrorMs: absErr, rating });
+    setState({ kind: "result", elapsedMs, targetMs, signedErrorMs: absErr });
     if (absErr < bestErrorMs) {
       setBestErrorMs(absErr);
       try { localStorage.setItem("timing_best_error_ms", String(absErr)); } catch {}
     }
   }
+
+  // カウントダウン終了で自動的に running へ
   useEffect(() => {
     if (state.kind !== "countdown") return;
     const delay = Math.max(0, state.endAt - performance.now());
@@ -89,44 +83,41 @@ export default function TimingStopBlind() {
     return () => window.removeEventListener("keydown", onKey);
   }, [state]);
 
+  // ====== Canvas render loop ======
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
-    
 
-    // デバイスピクセル比に合わせてキャンバスをフィット
-    function fitCanvas() {
-      
+    // 高DPIにフィット（{W,H} | undefined を返す）
+    function fitCanvas(): { W: number; H: number } | undefined {
       if (!canvas) return;
       if (!ctx) return;
 
       const dpr = window.devicePixelRatio || 1;
       const rect = canvas.getBoundingClientRect();
       const cssW = Math.max(1, Math.round(rect.width));
-      const cssH = BASE_HEIGHT; // 高さは固定（必要なら可変に）
-      const needResize =
-        canvas.width !== Math.round(cssW * dpr) || canvas.height !== Math.round(cssH * dpr);
+      const cssH = BASE_HEIGHT;
+      const needResize = canvas.width !== Math.round(cssW * dpr) || canvas.height !== Math.round(cssH * dpr);
       if (needResize) {
         canvas.width = Math.round(cssW * dpr);
         canvas.height = Math.round(cssH * dpr);
-        ctx.setTransform(dpr, 0, 0, dpr, 0, 0); // 以降はCSSピクセルで描画
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       }
       return { W: cssW, H: cssH };
     }
 
     function drawBg(W: number, H: number) {
-      // 背景: 白
       if (!ctx) return;
+
+      // 背景: 白
       ctx.fillStyle = "#ffffff";
       ctx.fillRect(0, 0, W, H);
-
-      // 上部インフォバー（右端までしっかり塗る）
+      // 上部インフォバー（右端まで）
       ctx.fillStyle = "#f3f4f6";
       ctx.fillRect(0, 0, W, INFOBAR_HEIGHT);
-
-      // テキスト（中央寄せで2項目を1行に）
+      // 中央寄せテキスト
       ctx.fillStyle = "#111827";
       ctx.font = "600 16px ui-sans-serif, system-ui";
       ctx.textAlign = "center";
@@ -137,6 +128,7 @@ export default function TimingStopBlind() {
 
     function drawIdle(W: number, H: number) {
       if (!ctx) return;
+
       ctx.textAlign = "center";
       ctx.fillStyle = "#111827";
       ctx.font = "600 18px ui-sans-serif, system-ui";
@@ -146,6 +138,7 @@ export default function TimingStopBlind() {
 
     function drawCountdown(W: number, H: number) {
       if (!ctx) return;
+
       const now = performance.now();
       const leftMs = state.kind === "countdown" ? Math.max(0, state.endAt - now) : 0;
       const leftSec = Math.ceil(leftMs / 1000); // 3,2,1
@@ -159,8 +152,9 @@ export default function TimingStopBlind() {
     }
 
     function drawTimer(W: number, H: number, elapsedMs: number) {
-      const show = elapsedMs <= visibleUntilMs;
       if (!ctx) return;
+
+      const show = elapsedMs <= visibleUntilMs;
       ctx.textAlign = "center";
       ctx.fillStyle = "#111827";
       if (show) {
@@ -177,10 +171,11 @@ export default function TimingStopBlind() {
       ctx.textAlign = "start";
     }
 
-    function drawResult(W: number, H: number, elapsedMs: number, absErrorMs: number, _rating: string) {
+    function drawResult(W: number, H: number, elapsedMs: number, absErrorMs: number) {
       if (!ctx) return;
       
       const actual = (elapsedMs / 1000).toFixed(3) + "s";
+      // 表示用の符号は elapsed と target の比較から算出
       const signedDisplay = (elapsedMs - targetMs >= 0 ? +1 : -1) * absErrorMs;
       const diffStr = formatSignedSeconds(signedDisplay);
       const hint = signedDisplay > 0 ? "遅い" : signedDisplay < 0 ? "早い" : "ピタ";
@@ -197,8 +192,8 @@ export default function TimingStopBlind() {
     }
 
     function loop() {
-      const size = fitCanvas(); // 戻り値: {W,H} | undefined
-      if (!size) return;        // ここでナローイング
+      const size = fitCanvas(); // {W,H} | undefined
+      if (!size) return;        // ナローイング
       const { W, H } = size;
 
       drawBg(W, H);
@@ -211,7 +206,7 @@ export default function TimingStopBlind() {
         const elapsedMs = performance.now() - state.startedAt;
         drawTimer(W, H, elapsedMs);
       } else if (state.kind === "result") {
-        drawResult(W, H, state.elapsedMs, state.signedErrorMs, state.rating);
+        drawResult(W, H, state.elapsedMs, state.signedErrorMs);
       }
 
       rafRef.current = requestAnimationFrame(loop);
@@ -265,8 +260,7 @@ export default function TimingStopBlind() {
                     const now = performance.now();
                     const elapsedMs = now - state.startedAt;
                     const absErr = Math.abs(elapsedMs - targetMs);
-                    const rating = ratingFor(absErr);
-                    setState({ kind: "result", elapsedMs, targetMs, signedErrorMs: absErr, rating });
+                    setState({ kind: "result", elapsedMs, targetMs, signedErrorMs: absErr });
                     if (absErr < bestErrorMs) {
                       setBestErrorMs(absErr);
                       try { localStorage.setItem("timing_best_error_ms", String(absErr)); } catch {}
