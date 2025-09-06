@@ -187,7 +187,7 @@ export default function TimingStopBlind() {
     // 最終結果: 1) 実測タイム（大） 2) 目標時間＋早い/遅い 3) 目標の下に誤差（±）
     function drawResult(elapsedMs: number, absErrorMs: number, _rating: string) {
       if (!canvas || !ctx) return;
-      
+
       const actual = (elapsedMs / 1000).toFixed(3) + "s";
       const signedDisplay = (elapsedMs - targetMs >= 0 ? +1 : -1) * absErrorMs;
       const diffStr = formatSignedSeconds(signedDisplay);
@@ -269,14 +269,7 @@ export default function TimingStopBlind() {
           <canvas ref={canvasRef} width={WIDTH} height={HEIGHT} className="block" />
         </div>
 
-        <aside className="text-slate-700 text-sm leading-relaxed">
-          <ul className="list-disc ml-5 space-y-1">
-            <li>Start で <strong>3秒カウントダウン</strong>の後、計測開始。</li>
-            <li>表示は <strong>0.3×目標時間（1秒刻みで切り上げ）</strong> まで。</li>
-            <li>Stop で結果表示（実測タイム → 目標時間＋早い/遅い → 誤差±）。</li>
-            <li>このページ滞在中は <strong>一回限り</strong>。やり直す場合はページを再読み込みしてください。</li>
-          </ul>
-        </aside>
+
       </div>
     </div>
   );
