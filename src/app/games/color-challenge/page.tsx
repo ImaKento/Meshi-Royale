@@ -1,7 +1,8 @@
 'use client';
 
-import React, { Suspense, useState, useEffect, useRef } from 'react';
 import { useSearchParams } from 'next/navigation';
+import React, { Suspense, useEffect, useRef, useState } from 'react';
+
 import { supabase } from '../../../lib/supabase';
 
 type GameState = 'ready' | 'countdown' | 'playing' | 'finished';
@@ -10,15 +11,15 @@ type GameResultRow = {
   id?: string;
   userId?: string;
   user?: { name?: string } | null;
-  scores?: number;       // ここでは最終スコア（大きいほど上位）
-  created_at?: string;   // あればタイブレーク用
-  createdAt?: string;    // あればタイブレーク用
+  scores?: number; // ここでは最終スコア（大きいほど上位）
+  created_at?: string; // あればタイブレーク用
+  createdAt?: string; // あればタイブレーク用
 };
 
 // ===== ランキング生成（競技順位: 1,2,2,4） =====
-function buildLeaderboard<T extends { id?: string; scores?: number; created_at?: string; createdAt?: string }>(
-  rows: T[], order: 'asc' | 'desc' = 'desc'
-) {
+function buildLeaderboard<
+  T extends { id?: string; scores?: number; created_at?: string; createdAt?: string },
+>(rows: T[], order: 'asc' | 'desc' = 'desc') {
   const sorted = rows.slice().sort((a, b) => {
     const as = Number(a?.scores ?? (order === 'asc' ? Infinity : -Infinity));
     const bs = Number(b?.scores ?? (order === 'asc' ? Infinity : -Infinity));
@@ -61,15 +62,21 @@ function ColorRushGameComponent() {
   const [countdown, setCountdown] = useState(3);
   const [timeLeft, setTimeLeft] = useState(20);
   const [score, setScore] = useState(0);
-  const [currentProblem, setCurrentProblem] = useState({ text: '', color: '', correctAnswer: '', type: '' });
+  const [currentProblem, setCurrentProblem] = useState({
+    text: '',
+    color: '',
+    correctAnswer: '',
+    type: '',
+  });
   const [totalProblems, setTotalProblems] = useState(0);
+  const [destinatedStore, setDestinatedStore] = useState<string | null>(null);
 
   // 4色に絞る
   const colors = [
     { name: '赤', value: 'red', class: 'text-red-500', bg: 'bg-red-500' },
     { name: '緑', value: 'green', class: 'text-green-500', bg: 'bg-green-500' },
     { name: '青', value: 'blue', class: 'text-blue-500', bg: 'bg-blue-500' },
-    { name: '黄', value: 'yellow', class: 'text-yellow-500', bg: 'bg-yellow-500' }
+    { name: '黄', value: 'yellow', class: 'text-yellow-500', bg: 'bg-yellow-500' },
   ];
 
   // 新しい問題を生成
@@ -81,7 +88,7 @@ function ColorRushGameComponent() {
       text: textColor.name,
       color: displayColor.class,
       correctAnswer: problemType === 'color' ? displayColor.name : textColor.name,
-      type: problemType === 'color' ? 'いろ' : 'よみ'
+      type: problemType === 'color' ? 'いろ' : 'よみ',
     });
   };
 
@@ -98,7 +105,9 @@ function ColorRushGameComponent() {
         console.error('ルームID取得エラー:', e);
       }
     })();
-    return () => { aborted = true; };
+    return () => {
+      aborted = true;
+    };
   }, [roomCode]);
 
   // ===== 初期データ取得（ガード無しで allDone 判定） =====
@@ -143,6 +152,9 @@ function ColorRushGameComponent() {
             const data = await resp.json();
             if (resp.ok && data?.gameResults) {
               const list: GameResultRow[] = data.gameResults;
+              const userResponse = await fetch(`/api/users/${list[0].userId}`);
+              const userData = await userResponse.json();
+              setDestinatedStore(userData.item.food_candidates);
               setGameResults(list);
               if (totalPlayers > 0 && list.length >= totalPlayers) setAllDone(true); // stateガード無し
             }
@@ -153,7 +165,9 @@ function ColorRushGameComponent() {
       )
       .subscribe();
 
-    return () => { supabase.removeChannel(channel); };
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [roomId, gameType, totalPlayers]);
 
   // カウントダウン処理
@@ -166,8 +180,8 @@ function ColorRushGameComponent() {
       setTimeLeft(20);
       setScore(0);
       setTotalProblems(0);
-      postedRef.current = false;   // 新規ラウンドのためリセット
-      setAllDone(false);           // 新規ラウンドのためリセット
+      postedRef.current = false; // 新規ラウンドのためリセット
+      setAllDone(false); // 新規ラウンドのためリセット
       generateProblem();
     }
   }, [gameState, countdown]);
@@ -237,19 +251,19 @@ function ColorRushGameComponent() {
   }, [gameState, userId, roomId, gameType, score, totalPlayers]);
 
   return (
-    <div className="h-screen bg-white flex flex-col">
+    <div className='flex h-screen flex-col bg-white'>
       {/* ゲーム開始画面 */}
       {gameState === 'ready' && (
-        <div className="h-full flex flex-col items-center justify-center p-4">
-          <h1 className="text-4xl md:text-6xl font-bold mb-8 text-black">カラーラッシュ</h1>
+        <div className='flex h-full flex-col items-center justify-center p-4'>
+          <h1 className='mb-8 text-4xl font-bold text-black md:text-6xl'>カラーラッシュ</h1>
 
-          <div className="bg-gray-100 rounded-2xl p-8 mb-8 max-w-md">
-            <div className="text-center mb-6">
-              <div className="text-4xl font-bold text-blue-500 mb-2">緑</div>
-              <div className="text-lg font-bold text-black px-3 py-1 rounded mb-3">いろ</div>
-              <p className="text-lg text-gray-700">指示に従って選んでください</p>
-              <p className="text-sm text-gray-500 mt-2">この場合の答え：青</p>
-              <div className="mt-4 text-sm text-gray-600">
+          <div className='mb-8 max-w-md rounded-2xl bg-gray-100 p-8'>
+            <div className='mb-6 text-center'>
+              <div className='mb-2 text-4xl font-bold text-blue-500'>緑</div>
+              <div className='mb-3 rounded px-3 py-1 text-lg font-bold text-black'>いろ</div>
+              <p className='text-lg text-gray-700'>指示に従って選んでください</p>
+              <p className='mt-2 text-sm text-gray-500'>この場合の答え：青</p>
+              <div className='mt-4 text-sm text-gray-600'>
                 <p>「いろ」→ 文字の色を選択</p>
                 <p>「よみ」→ 文字の内容を選択</p>
               </div>
@@ -258,7 +272,7 @@ function ColorRushGameComponent() {
 
           <button
             onClick={startGame}
-            className="bg-black text-white font-bold py-4 px-12 rounded-xl text-2xl hover:bg-gray-800 transition-all duration-300"
+            className='rounded-xl bg-black px-12 py-4 text-2xl font-bold text-white transition-all duration-300 hover:bg-gray-800'
           >
             ゲーム開始
           </button>
@@ -267,36 +281,36 @@ function ColorRushGameComponent() {
 
       {/* カウントダウン画面 */}
       {gameState === 'countdown' && (
-        <div className="h-full flex items-center justify-center">
-          <div className="text-9xl font-bold text-black">{countdown || 'START!'}</div>
+        <div className='flex h-full items-center justify-center'>
+          <div className='text-9xl font-bold text-black'>{countdown || 'START!'}</div>
         </div>
       )}
 
       {/* ゲーム画面 */}
       {gameState === 'playing' && (
-        <div className="h-full flex flex-col">
+        <div className='flex h-full flex-col'>
           {/* 上部：時間バーとスコア */}
-          <div className="p-4 flex items-center justify-between">
-            <div className="flex-1 bg-gray-200 rounded-full h-6 mr-4">
+          <div className='flex items-center justify-between p-4'>
+            <div className='mr-4 h-6 flex-1 rounded-full bg-gray-200'>
               <div
-                className="bg-blue-500 h-6 rounded-full transition-all duration-1000"
+                className='h-6 rounded-full bg-blue-500 transition-all duration-1000'
                 style={{ width: `${(timeLeft / 20) * 100}%` }}
               ></div>
             </div>
-            <div className="bg-white border-2 border-black rounded-full w-12 h-12 flex items-center justify-center">
-              <span className="font-bold text-lg">{timeLeft}</span>
+            <div className='flex h-12 w-12 items-center justify-center rounded-full border-2 border-black bg-white'>
+              <span className='text-lg font-bold'>{timeLeft}</span>
             </div>
           </div>
 
           {/* メイン：4コーナーレイアウト */}
-          <div className="flex-1 relative">
+          <div className='relative flex-1'>
             {/* 中央の問題表示 */}
-            <div className="absolute inset-0 flex items-center justify-center z-10 pointer-events-none">
-              <div className="bg-white border-4 border-black rounded-2xl w-60 h-60 flex flex-col items-center justify-center shadow-lg text-center">
-                <div className={`text-5xl md:text-6xl font-bold ${currentProblem.color} mb-3`}>
+            <div className='pointer-events-none absolute inset-0 z-10 flex items-center justify-center'>
+              <div className='flex h-60 w-60 flex-col items-center justify-center rounded-2xl border-4 border-black bg-white text-center shadow-lg'>
+                <div className={`text-5xl font-bold md:text-6xl ${currentProblem.color} mb-3`}>
                   {currentProblem.text}
                 </div>
-                <div className="text-xl md:text-2xl font-bold text-black px-3 py-1 rounded-lg">
+                <div className='rounded-lg px-3 py-1 text-xl font-bold text-black md:text-2xl'>
                   {currentProblem.type}
                 </div>
               </div>
@@ -305,30 +319,30 @@ function ColorRushGameComponent() {
             {/* 4つのコーナーボタン */}
             <button
               onClick={() => selectAnswer('赤')}
-              className="absolute top-0 left-0 w-1/2 h-1/2 bg-red-500 hover:bg-red-600 active:bg-red-700 transition-all duration-150 flex items-center justify-center"
+              className='absolute top-0 left-0 flex h-1/2 w-1/2 items-center justify-center bg-red-500 transition-all duration-150 hover:bg-red-600 active:bg-red-700'
             >
-              <span className="text-white text-2xl md:text-4xl font-bold opacity-20">赤</span>
+              <span className='text-2xl font-bold text-white opacity-20 md:text-4xl'>赤</span>
             </button>
 
             <button
               onClick={() => selectAnswer('緑')}
-              className="absolute top-0 right-0 w-1/2 h-1/2 bg-green-500 hover:bg-green-600 active:bg-green-700 transition-all duration-150 flex items-center justify-center"
+              className='absolute top-0 right-0 flex h-1/2 w-1/2 items-center justify-center bg-green-500 transition-all duration-150 hover:bg-green-600 active:bg-green-700'
             >
-              <span className="text-white text-2xl md:text-4xl font-bold opacity-20">緑</span>
+              <span className='text-2xl font-bold text-white opacity-20 md:text-4xl'>緑</span>
             </button>
 
             <button
               onClick={() => selectAnswer('黄')}
-              className="absolute bottom-0 left-0 w-1/2 h-1/2 bg-yellow-500 hover:bg-yellow-600 active:bg-yellow-700 transition-all duration-150 flex items-center justify-center"
+              className='absolute bottom-0 left-0 flex h-1/2 w-1/2 items-center justify-center bg-yellow-500 transition-all duration-150 hover:bg-yellow-600 active:bg-yellow-700'
             >
-              <span className="text-white text-2xl md:text-4xl font-bold opacity-20">黄</span>
+              <span className='text-2xl font-bold text-white opacity-20 md:text-4xl'>黄</span>
             </button>
 
             <button
               onClick={() => selectAnswer('青')}
-              className="absolute bottom-0 right-0 w-1/2 h-1/2 bg-blue-500 hover:bg-blue-600 active:bg-blue-700 transition-all duration-150 flex items-center justify-center"
+              className='absolute right-0 bottom-0 flex h-1/2 w-1/2 items-center justify-center bg-blue-500 transition-all duration-150 hover:bg-blue-600 active:bg-blue-700'
             >
-              <span className="text-white text-2xl md:text-4xl font-bold opacity-20">青</span>
+              <span className='text-2xl font-bold text-white opacity-20 md:text-4xl'>青</span>
             </button>
           </div>
         </div>
@@ -336,32 +350,37 @@ function ColorRushGameComponent() {
 
       {/* 結果画面（Realtime対応＋ランキング） */}
       {gameState === 'finished' && (
-        <div className="h-full flex flex-col items-center justify-center p-4">
-          <h2 className="text-4xl md:text-5xl font-bold mb-8 text-black">結果発表</h2>
+        <div className='flex h-full flex-col items-center justify-center p-4'>
+          <h2 className='mb-8 text-4xl font-bold text-black md:text-5xl'>結果発表</h2>
 
-          <div className="bg-gray-100 rounded-2xl p-8 mb-8 text-center">
-            <div className="text-6xl md:text-7xl font-bold text-black mb-4">{score}</div>
-            <div className="text-xl md:text-2xl text-black font-bold mb-2">
+          <div className='mb-8 rounded-2xl bg-gray-100 p-8 text-center'>
+            <div className='mb-4 text-6xl font-bold text-black md:text-7xl'>{score}</div>
+            <div className='mb-2 text-xl font-bold text-black md:text-2xl'>
               {totalProblems} 問中 {score} 問正解
             </div>
           </div>
 
           {/* 単体プレイ or 待機 or 最終結果 */}
           {!roomId || !totalPlayers ? (
-            <p className="text-slate-600 text-sm">
+            <p className='text-sm text-slate-600'>
               ルーム連携なしの単体プレイです。URLに <code>userId</code>, <code>roomCode</code>,{' '}
               <code>joindUserCount</code> を付けると対戦待ち＆最終結果が有効になります。
             </p>
           ) : !allDone ? (
-            <p className="text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-4 py-3 text-sm">
+            <p className='rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700'>
               他のプレイヤーの完了を待っています…
               <br />
               参加人数: {totalPlayers} / 受信済: {gameResults.length}
             </p>
           ) : (
-            <div className="w-full max-w-xl mt-6">
-              <h3 className="text-slate-900 font-semibold mb-3">🏆 最終結果（スコア高い順）</h3>
-              <div className="space-y-2">
+            <div className='mt-6 w-full max-w-xl'>
+              <div className='my-4 rounded-lg border border-gray-300 p-8'>
+                <h2 className='flex justify-center text-4xl font-bold text-black'>
+                  {destinatedStore} に決定！！
+                </h2>
+              </div>
+              <h3 className='mb-3 font-semibold text-slate-900'>🏆 最終結果（スコア高い順）</h3>
+              <div className='space-y-2'>
                 {(() => {
                   const { sorted, ranks } = buildLeaderboard(gameResults, 'desc');
                   const myIdx = sorted.findIndex(r => r.userId === userId);
@@ -369,8 +388,8 @@ function ColorRushGameComponent() {
                   return (
                     <>
                       {typeof myRank === 'number' && (
-                        <div className="mb-3 text-slate-700 text-sm">
-                          あなたの順位: <span className="font-bold">{myRank}位</span>
+                        <div className='mb-3 text-sm text-slate-700'>
+                          あなたの順位: <span className='font-bold'>{myRank}位</span>
                         </div>
                       )}
                       {sorted.map((r: GameResultRow, idx: number) => {
@@ -380,19 +399,23 @@ function ColorRushGameComponent() {
                           <div
                             key={r.id ?? `${r.userId}-${idx}`}
                             className={`flex items-center justify-between rounded-lg border p-3 ${
-                              isMe ? 'border-emerald-300 bg-emerald-50' : 'border-slate-200 bg-slate-50'
+                              isMe
+                                ? 'border-emerald-300 bg-emerald-50'
+                                : 'border-slate-200 bg-slate-50'
                             }`}
                           >
-                            <div className="flex items-center gap-3">
-                              <span className="text-slate-500 text-sm w-8 text-right">{rank}位</span>
-                              <span className="text-slate-900 font-semibold">
+                            <div className='flex items-center gap-3'>
+                              <span className='w-8 text-right text-sm text-slate-500'>
+                                {rank}位
+                              </span>
+                              <span className='font-semibold text-slate-900'>
                                 {r?.user?.name || 'ゲスト'}
                                 {isMe ? '（あなた）' : ''}
                               </span>
                             </div>
-                            <div className="text-right">
-                              <div className="text-slate-900 font-bold">{r?.scores ?? 0}</div>
-                              <div className="text-slate-500 text-xs">スコア</div>
+                            <div className='text-right'>
+                              <div className='font-bold text-slate-900'>{r?.scores ?? 0}</div>
+                              <div className='text-xs text-slate-500'>スコア</div>
                             </div>
                           </div>
                         );
@@ -408,7 +431,6 @@ function ColorRushGameComponent() {
     </div>
   );
 }
-
 
 export default function ColorRushGame() {
   return (

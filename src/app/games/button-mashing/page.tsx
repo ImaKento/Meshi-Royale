@@ -25,6 +25,7 @@ function ClickGameContent() {
   const [gameResults, setGameResults] = useState<any[]>([]);
   const [roomId, setRoomId] = useState<string | null>(null);
   const clickButtonRef = useRef<HTMLButtonElement>(null);
+  const [destinatedStore, setDestinatedStore] = useState<string | null>(null);
 
   // カウントダウン処理
   useEffect(() => {
@@ -108,6 +109,9 @@ function ClickGameContent() {
 
               if (completedCount >= totalPlayers) {
                 setGameState('results');
+                const userResponse = await fetch(`/api/users/${data.gameResults[0].user.id}`);
+                const userData = await userResponse.json();
+                setDestinatedStore(userData.item.food_candidates);
               }
             }
           } catch (error) {
@@ -299,32 +303,34 @@ function ClickGameContent() {
                 </div>
               </div>
             </div>
-          )}
+          </div>
+        )}
 
-          {/* 全体結果画面 */}
-          {gameState === 'results' && (
-            <div className='text-center'>
-              <div className='rounded-lg border border-gray-300 p-8'>
-                <h2 className='mb-6 text-4xl font-bold text-black'>🏆 最終結果</h2>
+        {/* 全体結果画面 */}
+        {gameState === 'results' && (
+          <div className='text-center'>
+            <div className='my-4 rounded-lg border border-gray-300 p-8'>
+              <h2 className='flex justify-center text-4xl font-bold text-black'>
+                {destinatedStore} に決定！！
+              </h2>
+            </div>
+            <div className='rounded-lg border border-gray-300 p-8'>
+              <h2 className='mb-6 text-4xl font-bold text-black'>🏆 最終結果</h2>
 
-                <div className='space-y-4'>
-                  {gameResults.map((result, index) => (
-                    <div
-                      key={result.id}
-                      className={`rounded-lg border p-4 ${
-                        result.userId === userId
-                          ? 'border-yellow-300 bg-yellow-100'
-                          : 'border-gray-200 bg-gray-50'
-                      }`}
-                    >
-                      <div className='flex items-center justify-between'>
-                        <div className='text-left'>
-                          <div className='text-xl font-bold text-black'>
-                            {index + 1}位: {result.user.name || 'ゲスト'}
-                          </div>
-                          <div className='text-sm text-gray-600'>
-                            {result.userId === userId ? '(あなた)' : ''}
-                          </div>
+              <div className='space-y-4'>
+                {gameResults.map((result, index) => (
+                  <div
+                    key={result.id}
+                    className={`rounded-lg border p-4 ${
+                      result.userId === userId
+                        ? 'border-yellow-300 bg-yellow-100'
+                        : 'border-gray-200 bg-gray-50'
+                    }`}
+                  >
+                    <div className='flex items-center justify-between'>
+                      <div className='text-left'>
+                        <div className='text-xl font-bold text-black'>
+                          {index + 1}位: {result.user.name || 'ゲスト'}
                         </div>
                         <div className='text-right'>
                           <div className='text-2xl font-bold text-black'>{result.scores}</div>
