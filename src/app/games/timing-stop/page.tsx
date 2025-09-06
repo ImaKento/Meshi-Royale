@@ -136,6 +136,7 @@ export default function TimingStopBlind() {
     if (!ctx) return;
 
     function drawBg() {
+      if (!ctx) return;
       // 背景: 白
       ctx.fillStyle = "#ffffff";
       ctx.fillRect(0, 0, WIDTH, HEIGHT);
@@ -153,6 +154,7 @@ export default function TimingStopBlind() {
 
     function drawTimer(elapsedMs: number) {
       const show = elapsedMs <= visibleUntilMs;
+      if (!ctx) return;
       ctx.textAlign = "center";
       ctx.fillStyle = "#111827"; // 濃いグレー
 
@@ -177,7 +179,8 @@ export default function TimingStopBlind() {
       const signedDisplay = (elapsedMs - targetMs >= 0 ? +1 : -1) * absErrorMs;
       const diffStr = formatSignedSeconds(signedDisplay);
       const hint = signedDisplay > 0 ? "遅い" : signedDisplay < 0 ? "早い" : "ピタ";
-
+      
+      if (!ctx) return;
       ctx.textAlign = "center";
       ctx.fillStyle = "#111827";
 
@@ -208,6 +211,7 @@ export default function TimingStopBlind() {
       } else if (state.kind === "result") {
         drawResult(state.elapsedMs, state.signedErrorMs, state.rating);
       } else {
+        if (!ctx) return;
         // idle hint
         ctx.fillStyle = "#111827";
         ctx.textAlign = "center";
