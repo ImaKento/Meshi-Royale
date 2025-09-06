@@ -39,7 +39,55 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ roomUser });
   } catch (error) {
-    console.error('ルームユーザー作成エラー:', error);
-    return NextResponse.json({ error: 'ルームユーザーの作成に失敗しました' }, { status: 500 });
+    return NextResponse.json(
+      { error: 'ルームユーザーの作成に失敗しました。' + error },
+      { status: 500 }
+    );
+  }
+}
+
+export async function DELETE(request: NextRequest) {
+  try {
+    const { roomCode, userId } = await request.json();
+
+    // roomCodeからroomIdを取得
+    const room = await prisma.room.findUnique({
+      where: { roomCode },
+      select: { id: true },
+    });
+
+    if (!room) {
+      return NextResponse.json({ error: 'ルームが見つかりません' }, { status: 404 });
+    }
+
+    // 参加しているかチェック
+    const existingRoomUser = await prisma.roomUser.findUnique({
+      where: {
+        roomId_userId: {
+          roomId: room.id,
+          userId: userId,
+        },
+      },
+    });
+
+    if (!existingRoomUser) {
+      return NextResponse.json({ error: 'このルームに参加していません' }, { status: 404 });
+    }
+
+    const roomUser = await prisma.roomUser.delete({
+      where: {
+        roomId_userId: {
+          roomId: room.id,
+          userId: userId,
+        },
+      },
+    });
+
+    return NextResponse.json({ roomUser });
+  } catch (error) {
+    return NextResponse.json(
+      { error: 'ルームユーザーの削除に失敗しました。' + error },
+      { status: 500 }
+    );
   }
 }
