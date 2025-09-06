@@ -44,8 +44,6 @@ function RoomPage({ params }: { params: Promise<{ roomCode: string }> }) {
 
   const removeRoomUser = async () => {
     try {
-      console.log('削除リクエスト:', { roomCode, userId });
-
       const response = await fetch('/api/room-users', {
         method: 'DELETE',
         headers: {
@@ -54,19 +52,15 @@ function RoomPage({ params }: { params: Promise<{ roomCode: string }> }) {
         body: JSON.stringify({ roomCode, userId }),
       });
 
-      console.log('レスポンスステータス:', response.status);
       const data = await response.json();
-      console.log('レスポンスデータ:', data);
 
       if (response.ok) {
         router.push('/');
       } else {
-        console.error('ルームユーザー削除エラー:', data.error);
         alert(data.error || 'ルームからの退出に失敗しました');
       }
     } catch (error) {
-      console.error('ルームユーザー削除エラー:', error);
-      alert('ルームからの退出に失敗しました');
+      alert('ルームからの退出に失敗しました。' + error);
     }
   };
 
@@ -87,10 +81,9 @@ function RoomPage({ params }: { params: Promise<{ roomCode: string }> }) {
           setRoomUsers(data.room.roomUsers || []);
           setLastUpdated(new Date());
         } else {
-          console.error('ルーム取得エラー:', data.error);
         }
       } catch (error) {
-        console.error('ルーム取得エラー:', error);
+        alert('ルームの取得に失敗しました。' + error);
       } finally {
         if (isInitial) {
           setIsInitialLoading(false);
