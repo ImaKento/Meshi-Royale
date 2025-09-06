@@ -1,7 +1,7 @@
 'use client';
 
 import React, { Suspense, useEffect, useRef, useState } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useSearchParams, useRouter } from 'next/navigation';
 import { supabase } from '../../../lib/supabase';
 
 // Dodge Game (Start → 3s countdown → Run 30s → Result, light theme)
@@ -89,6 +89,7 @@ function DodgeGameContent() {
   const joindUserCount = searchParams.get('joindUserCount'); // 前コード互換のtypo名を踏襲
   const totalPlayers = parseInt(joindUserCount || '0', 10);
   const gameType = 'avoidance';
+  const router = useRouter();
 
   const [roomId, setRoomId] = useState<string | null>(null);
   const [gameResults, setGameResults] = useState<any[]>([]);
@@ -98,6 +99,7 @@ function DodgeGameContent() {
   const [state, setState] = useState<GameState>({ kind: 'idle' });
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const rafRef = useRef<number | null>(null);
+  const joyAreaRef = useRef<HTMLDivElement | null>(null);
 
   const hasPlayedRef = useRef(false); // 一回きり制御
   const survivedSecRef = useRef<number>(0);
@@ -110,6 +112,15 @@ function DodgeGameContent() {
     px: number; py: number; obstacles: Obstacle[]; lastTs: number | null;
     lastSpawnMs: number; startMsRef: number;
   }>({ px: 0, py: 0, obstacles: [], lastTs: null, lastSpawnMs: 0, startMsRef: 0 });
+
+  // === 仮想スティック（アナログ） ===
+  const joystickRef = useRef<{
+    active: boolean; ox: number; oy: number; vx: number; vy: number; r: number;
+  }>({ active: false, ox: 0, oy: 0, vx: 0, vy: 0, r: 60 });
+
+  const [joyUI, setJoyUI] = useState<{ active: boolean; ox: number; oy: number; kx: number; ky: number }>({
+    active: false, ox: 0, oy: 0, kx: 0, ky: 0
+  });
 
   // ===== ルームID取得 =====
   useEffect(() => {
@@ -291,7 +302,7 @@ function DodgeGameContent() {
     };
   }, [state.kind]);
 
-  // ===== 入力（ポインタ: ドラッグ） =====
+  // ===== 入力（ポインタ: ドラッグ - キャンバス直ドラッグ） =====
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -339,6 +350,85 @@ function DodgeGameContent() {
       canvas.removeEventListener('pointercancel', onUp);
     };
   }, [state.kind]);
+
+  // ===== 仮想スティック（アナログ）: 中央固定 =====
+  function joyLocal(e: React.PointerEvent<HTMLDivElement>, el: HTMLDivElement) {
+    const r = el.getBoundingClientRect();
+    return { x: e.clientX - r.left, y: e.clientY - r.top };
+  }
+
+  // running になったらベース円を中央に初期化（リサイズでも追従）
+  useEffect(() => {
+    if (state.kind !== 'running') return;
+    const el = joyAreaRef.current;
+    if (!el) return;
+    const setCenter = () => {
+      const r = el.getBoundingClientRect();
+      const cx = r.width / 2;
+      const cy = r.height / 2;
+      joystickRef.current.ox = cx;
+      joystickRef.current.oy = cy;
+      setJoyUI(prev => ({ ...prev, ox: cx, oy: cy }));
+    };
+    setCenter();
+    window.addEventListener('resize', setCenter);
+    return () => window.removeEventListener('resize', setCenter);
+  }, [state.kind]);
+
+  function joyStart(e: React.PointerEvent<HTMLDivElement>) {
+    if (state.kind !== 'running') return;
+    const el = joyAreaRef.current ?? e.currentTarget;
+    el.setPointerCapture(e.pointerId);
+
+    // 中央を基準点にする
+    const rect = el.getBoundingClientRect();
+    const cx = rect.width / 2;
+    const cy = rect.height / 2;
+
+    const p = joyLocal(e, el);
+    let dx = p.x - cx;
+    let dy = p.y - cy;
+
+    const max = joystickRef.current.r;
+    const dist = Math.hypot(dx, dy);
+    if (dist > max) { const s = max / dist; dx *= s; dy *= s; }
+
+    joystickRef.current.active = true;
+    joystickRef.current.ox = cx;
+    joystickRef.current.oy = cy;
+    joystickRef.current.vx = dx / max;
+    joystickRef.current.vy = dy / max;
+
+    setJoyUI({ active: true, ox: cx, oy: cy, kx: dx, ky: dy });
+  }
+
+  function joyMove(e: React.PointerEvent<HTMLDivElement>) {
+    if (!joystickRef.current.active) return;
+    const el = joyAreaRef.current ?? (e.currentTarget as HTMLDivElement);
+    const p = joyLocal(e, el);
+
+    let dx = p.x - joystickRef.current.ox; // 常に中央(ox,oy)基準
+    let dy = p.y - joystickRef.current.oy;
+
+    const max = joystickRef.current.r;
+    const dist = Math.hypot(dx, dy);
+    if (dist > max) { const s = max / dist; dx *= s; dy *= s; }
+
+    // [-1, 1] のアナログ入力
+    joystickRef.current.vx = dx / max;
+    joystickRef.current.vy = dy / max;
+
+    setJoyUI({ active: true, ox: joystickRef.current.ox, oy: joystickRef.current.oy, kx: dx, ky: dy });
+  }
+
+  function joyEnd(e: React.PointerEvent<HTMLDivElement>) {
+    const el = joyAreaRef.current ?? (e.currentTarget as HTMLDivElement);
+    try { el.releasePointerCapture(e.pointerId); } catch {}
+    joystickRef.current.active = false;
+    joystickRef.current.vx = 0;
+    joystickRef.current.vy = 0;
+    setJoyUI(prev => ({ ...prev, active: false, kx: 0, ky: 0 }));
+  }
 
   // ===== Canvas描画 & ゲームループ =====
   useEffect(() => {
@@ -463,16 +553,27 @@ function DodgeGameContent() {
         const dt = worldRef.current.lastTs ? (ts - worldRef.current.lastTs) / 1000 : 0;
         worldRef.current.lastTs = ts;
 
-        // 入力
-        const k = keysRef.current;
+        // 入力（キーボード or アナログ）
         let dx = 0, dy = 0;
-        if (k.has('arrowup') || k.has('w')) dy -= 1;
-        if (k.has('arrowdown') || k.has('s')) dy += 1;
-        if (k.has('arrowleft') || k.has('a')) dx -= 1;
-        if (k.has('arrowright') || k.has('d')) dx += 1;
+        let analog = false;
+
+        if (joystickRef.current.active) {
+          dx = joystickRef.current.vx;
+          dy = joystickRef.current.vy;
+          analog = true;
+        } else {
+          const k = keysRef.current;
+          if (k.has('arrowup') || k.has('w')) dy -= 1;
+          if (k.has('arrowdown') || k.has('s')) dy += 1;
+          if (k.has('arrowleft') || k.has('a')) dx -= 1;
+          if (k.has('arrowright') || k.has('d')) dx += 1;
+        }
+
         if (dx !== 0 || dy !== 0) {
-          const mag = Math.hypot(dx, dy) || 1;
-          dx /= mag; dy /= mag;
+          if (!analog) {
+            const mag = Math.hypot(dx, dy) || 1;
+            dx /= mag; dy /= mag;
+          }
           worldRef.current.px += dx * PLAYER_SPEED * dt;
           worldRef.current.py += dy * PLAYER_SPEED * dt;
         }
@@ -550,7 +651,7 @@ function DodgeGameContent() {
       </button>
       <p className="mt-8 text-slate-600 text-sm text-center">
         矢印 / WASD で移動 <br />
-        （モバイルはドラッグ）<br />
+        （モバイルはドラッグ or 下のアナログスティック）<br />
         30秒耐えればクリア！
       </p>
     </div>
@@ -629,6 +730,17 @@ function DodgeGameContent() {
               </div>
             </div>
           )}
+
+          {/* ← 追加部分：ホームへ戻る */}
+          <div className="mt-6 flex items-center justify-center">
+            <button
+              type="button"
+              onClick={() => router.push('/')}
+              className="inline-flex items-center justify-center rounded-full bg-slate-900 px-6 py-3 text-sm font-semibold text-white shadow-lg transition hover:bg-slate-800 focus:outline-none focus-visible:ring-4 focus-visible:ring-slate-400/50"
+            >
+              ホームへ戻る
+            </button>
+          </div>
         </div>
       </div>
     ) : null;
@@ -649,6 +761,42 @@ function DodgeGameContent() {
             <canvas ref={canvasRef} className="w-full h-full" />
           </div>
         </div>
+
+        {/* 仮想スティック（running中だけ表示） */}
+        {state.kind === 'running' && (
+          <div
+            ref={joyAreaRef}
+            className="rounded-2xl ring-1 ring-slate-200 bg-white shadow p-3 h-40 relative select-none touch-none"
+            onPointerDown={joyStart}
+            onPointerMove={joyMove}
+            onPointerUp={joyEnd}
+            onPointerCancel={joyEnd}
+            onPointerLeave={joyEnd}
+            onContextMenu={(e) => e.preventDefault()}
+          >
+            <p className="text-center text-slate-600 text-sm mb-2">スライドで移動（360°アナログ）</p>
+
+            {/* ベース円（押している間だけ表示） */}
+            <div
+              className={`absolute transition-opacity duration-150 ${joyUI.active ? 'opacity-100' : 'opacity-0'}`}
+              style={{
+                left: joyUI.ox - 60, top: joyUI.oy - 60, width: 120, height: 120,
+                borderRadius: 9999, border: '2px solid rgba(148,163,184,0.9)',
+                background: 'rgba(241,245,249,0.65)'
+              }}
+            />
+
+            {/* ノブ（親指の位置を示す） */}
+            <div
+              className="absolute pointer-events-none transition-transform"
+              style={{
+                left: joyUI.ox - 24 + joyUI.kx, top: joyUI.oy - 24 + joyUI.ky,
+                width: 48, height: 48, borderRadius: 9999, background: '#2563eb',
+                boxShadow: '0 6px 20px rgba(37,99,235,0.35)'
+              }}
+            />
+          </div>
+        )}
 
         {/* 結果パネル（roomがある場合は待機/最終結果をここに出す） */}
         {ResultPanel}
