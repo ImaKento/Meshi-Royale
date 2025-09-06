@@ -6,6 +6,7 @@ import { use, useEffect, useState } from 'react';
 import { Button } from '../../../components/ui/button';
 import { Card, CardContent } from '../../../components/ui/card';
 import { Input } from '../../../components/ui/input';
+import { useUserStore } from '../../../store/userStore';
 
 interface Room {
   id: string;
@@ -32,12 +33,42 @@ interface RoomUser {
 
 function RoomPage({ params }: { params: Promise<{ roomCode: string }> }) {
   const router = useRouter();
+  const { roomCode } = use(params);
+  const { userId } = useUserStore();
+
   const [room, setRoom] = useState<Room | null>(null);
   const [roomUsers, setRoomUsers] = useState<RoomUser[]>([]);
   const [isInitialLoading, setIsInitialLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
-  const { roomCode } = use(params);
+
+  const removeRoomUser = async () => {
+    try {
+      console.log('削除リクエスト:', { roomCode, userId });
+
+      const response = await fetch('/api/room-users', {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ roomCode, userId }),
+      });
+
+      console.log('レスポンスステータス:', response.status);
+      const data = await response.json();
+      console.log('レスポンスデータ:', data);
+
+      if (response.ok) {
+        router.push('/');
+      } else {
+        console.error('ルームユーザー削除エラー:', data.error);
+        alert(data.error || 'ルームからの退出に失敗しました');
+      }
+    } catch (error) {
+      console.error('ルームユーザー削除エラー:', error);
+      alert('ルームからの退出に失敗しました');
+    }
+  };
 
   useEffect(() => {
     const fetchRoomData = async (isInitial = false) => {
@@ -97,6 +128,7 @@ function RoomPage({ params }: { params: Promise<{ roomCode: string }> }) {
         <Button
           className='mt-4'
           onClick={() => {
+            removeRoomUser();
             router.push('/');
           }}
         >
