@@ -219,12 +219,17 @@ function GetAreaPageContent() {
 
   // 店名をセットして戻る
   const pick = (name: string) => {
+    const trimmed = (name ?? '').trim();
+    if (!trimmed) return;
+
     if (typeof window !== 'undefined') {
       try {
-        localStorage.setItem('pendingFoodCandidate', name);
+        localStorage.setItem('pendingFoodCandidate', trimmed);
       } catch {}
     }
-    router.push(returnTo);
+
+    // returnTo が無ければホームへ
+    router.push(returnTo || '/');
   };
 
   return (
