@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { Suspense, useState, useEffect, useRef } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { supabase } from '../../../lib/supabase';
 
@@ -42,7 +42,7 @@ function buildLeaderboard<T extends { id?: string; scores?: number; created_at?:
   return { sorted, ranks };
 }
 
-export default function ColorRushGame() {
+function ColorRushGameComponent() {
   // ===== 対戦用パラメータ =====
   const searchParams = useSearchParams();
   const userId = searchParams.get('userId');
@@ -406,5 +406,14 @@ export default function ColorRushGame() {
         </div>
       )}
     </div>
+  );
+}
+
+
+export default function ColorRushGame() {
+  return (
+    <Suspense fallback={<div>Loading...</div>}>
+      <ColorRushGameComponent />
+    </Suspense>
   );
 }

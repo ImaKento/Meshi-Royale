@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useRef, useState } from 'react';
+import React, { Suspense, useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { supabase } from '../../../lib/supabase';
 
@@ -81,7 +81,7 @@ function buildLeaderboard<T extends { id?: string; scores?: number; created_at?:
   return { sorted, ranks };
 }
 
-export default function DodgeGame() {
+function DodgeGameContent() {
   // ===== URL / ルーム / リアルタイム関連 =====
   const searchParams = useSearchParams();
   const userId = searchParams.get('userId');
@@ -659,4 +659,12 @@ export default function DodgeGame() {
   // idle の間は Start 専用画面、それ以降はゲーム画面
   if (state.kind === 'idle') return StartScreen;
   return GameScreen;
+}
+
+export default function DodgeGame() {
+  return (
+    <Suspense fallback={<div>Loading...</div>}>
+      <DodgeGameContent />
+    </Suspense>
+  );
 }
