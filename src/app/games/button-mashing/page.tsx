@@ -23,6 +23,7 @@ function ClickGameContent() {
   const [gameResults, setGameResults] = useState<any[]>([]);
   const [roomId, setRoomId] = useState<string | null>(null);
   const clickButtonRef = useRef<HTMLButtonElement>(null);
+  const [destinatedStore, setDestinatedStore] = useState<string | null>(null);
 
   // カウントダウン処理
   useEffect(() => {
@@ -106,6 +107,9 @@ function ClickGameContent() {
 
               if (completedCount >= totalPlayers) {
                 setGameState('results');
+                const userResponse = await fetch(`/api/users/${data.gameResults[0].user.id}`);
+                const userData = await userResponse.json();
+                setDestinatedStore(userData.item.food_candidates);
               }
             }
           } catch (error) {
@@ -299,6 +303,11 @@ function ClickGameContent() {
         {/* 全体結果画面 */}
         {gameState === 'results' && (
           <div className='text-center'>
+            <div className='my-4 rounded-lg border border-gray-300 p-8'>
+              <h2 className='flex justify-center text-4xl font-bold text-black'>
+                {destinatedStore} に決定！！
+              </h2>
+            </div>
             <div className='rounded-lg border border-gray-300 p-8'>
               <h2 className='mb-6 text-4xl font-bold text-black'>🏆 最終結果</h2>
 
