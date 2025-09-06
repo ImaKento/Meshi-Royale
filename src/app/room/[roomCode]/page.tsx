@@ -195,7 +195,12 @@ function RoomPage({ params }: { params: Promise<{ roomCode: string }> }) {
 
   const handleGemaStart = () => {
     // roomCodeから一意にゲームを決定
-    const games = ['/games/timing-stop', '/games/button-mashing'];
+    const games = [
+      // '/games/avoidance-game',
+      '/games/button-mashing',
+      // '/games/color-challenge',
+      // '/games/timing-stop',
+    ];
 
     // roomCodeをハッシュ化して一意なインデックスを生成
     const hash = roomCode.split('').reduce((acc, char, index) => {
@@ -205,7 +210,14 @@ function RoomPage({ params }: { params: Promise<{ roomCode: string }> }) {
     const gameIndex = Math.abs(hash) % games.length;
     const selectedGame = games[gameIndex];
 
-    router.push(selectedGame);
+    // パラメータを付けてゲームページに遷移
+    const params = new URLSearchParams({
+      userId: selfUserId || '',
+      roomCode: roomCode,
+      joindUserCount: roomUsers.length.toString(),
+    });
+
+    router.push(`${selectedGame}?${params.toString()}`);
   };
 
   return (
