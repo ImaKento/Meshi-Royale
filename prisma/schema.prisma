@@ -17,8 +17,36 @@ datasource db {
 
 model User {
   id        String   @id @default(uuid())
+  name      String   @default("ゲスト")
   email     String?
   password  String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  roomUsers RoomUser[]
+}
+
+model Room {
+  id          String   @id @default(uuid())
+  name        String   @default("新しいルーム")
+  roomCode    String   @unique // ユーザーが入力する6桁のコード
+  isActive    Boolean  @default(true) // ルームがアクティブかどうか
+  maxUsers    Int      @default(4) // 最大参加人数
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  roomUsers RoomUser[]
+}
+
+
+model RoomUser {
+  roomId    String   @map("room_id")
+  userId    String   @map("user_id")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@id([roomId, userId])
+
+  room Room @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
