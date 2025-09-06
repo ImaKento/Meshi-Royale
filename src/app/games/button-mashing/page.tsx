@@ -303,7 +303,6 @@ function ClickGameContent() {
                 </div>
               </div>
             </div>
-          </div>
         )}
 
         {/* 全体結果画面 */}
@@ -338,6 +337,7 @@ function ClickGameContent() {
                         </div>
                       </div>
                     </div>
+                  </div>
                   ))}
                 </div>
 
