@@ -43,3 +43,55 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'ルームユーザーの作成に失敗しました' }, { status: 500 });
   }
 }
+
+export async function DELETE(request: NextRequest) {
+  try {
+    const { roomCode, userId } = await request.json();
+    console.log('DELETE API - 受信データ:', { roomCode, userId });
+
+    // roomCodeからroomIdを取得
+    const room = await prisma.room.findUnique({
+      where: { roomCode },
+      select: { id: true },
+    });
+
+    console.log('ルーム検索結果:', room);
+
+    if (!room) {
+      console.log('ルームが見つかりません');
+      return NextResponse.json({ error: 'ルームが見つかりません' }, { status: 404 });
+    }
+
+    // 参加しているかチェック
+    const existingRoomUser = await prisma.roomUser.findUnique({
+      where: {
+        roomId_userId: {
+          roomId: room.id,
+          userId: userId,
+        },
+      },
+    });
+
+    console.log('参加チェック結果:', existingRoomUser);
+
+    if (!existingRoomUser) {
+      console.log('このルームに参加していません');
+      return NextResponse.json({ error: 'このルームに参加していません' }, { status: 404 });
+    }
+
+    const roomUser = await prisma.roomUser.delete({
+      where: {
+        roomId_userId: {
+          roomId: room.id,
+          userId: userId,
+        },
+      },
+    });
+
+    console.log('削除成功:', roomUser);
+    return NextResponse.json({ roomUser });
+  } catch (error) {
+    console.error('ルームユーザー削除エラー:', error);
+    return NextResponse.json({ error: 'ルームユーザーの削除に失敗しました' }, { status: 500 });
+  }
+}
