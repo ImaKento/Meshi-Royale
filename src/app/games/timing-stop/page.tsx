@@ -248,10 +248,11 @@ export default function TimingStopBlind() {
               </button>
             )}
             {state.kind === "countdown" && (
-              <span className="px-3 py-1.5 rounded-2xl bg-amber-500 text-white font-semibold shadow">
+              <span className="px-2 py-0.5 rounded-xl bg-amber-500 text-white font-semibold shadow text-xs sm:text-sm">
                 Countdown…
               </span>
             )}
+
             {state.kind === "running" && (
               <button
                 className="px-3 py-1.5 rounded-2xl bg-blue-600 text-white font-semibold shadow hover:bg-blue-500"
