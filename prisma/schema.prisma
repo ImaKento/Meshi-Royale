@@ -18,8 +18,7 @@ datasource db {
 model User {
   id        String   @id @default(uuid())
   name      String   @default("ゲスト")
-  email     String?
-  password  String?
+  food_candidates String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

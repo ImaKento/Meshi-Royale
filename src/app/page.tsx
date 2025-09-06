@@ -19,11 +19,15 @@ export default function Home() {
   const [isLoading, setIsLoading] = useState(false);
 
   const createUser = async () => {
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.clear();
+      } catch {}
+    }
+
     const response = await fetch('/api/users', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name: 'ゲスト' }),
     });
 
@@ -32,7 +36,15 @@ export default function Home() {
     }
 
     const data = await response.json();
-    return data.user.id;
+    const userId: string = data.user.id;
+
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.setItem('selfUserId', userId); // 端末共通の自分ID
+      } catch {}
+    }
+
+    return userId;
   };
 
   const createRoomUser = async ({ roomCode, userId }: { roomCode: string; userId: string }) => {
