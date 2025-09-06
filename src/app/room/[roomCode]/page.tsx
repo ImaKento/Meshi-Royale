@@ -1,6 +1,11 @@
 'use client';
 
+import { useRouter } from 'next/navigation';
 import { use, useEffect, useState } from 'react';
+
+import { Button } from '../../../components/ui/button';
+import { Card, CardContent } from '../../../components/ui/card';
+import { Input } from '../../../components/ui/input';
 
 interface Room {
   id: string;
@@ -26,6 +31,7 @@ interface RoomUser {
 }
 
 function RoomPage({ params }: { params: Promise<{ roomCode: string }> }) {
+  const router = useRouter();
   const [room, setRoom] = useState<Room | null>(null);
   const [roomUsers, setRoomUsers] = useState<RoomUser[]>([]);
   const [isInitialLoading, setIsInitialLoading] = useState(true);
@@ -88,28 +94,49 @@ function RoomPage({ params }: { params: Promise<{ roomCode: string }> }) {
   return (
     <div className='flex h-screen items-center justify-center'>
       <div className='flex flex-col gap-4'>
-        <div className='flex items-center gap-2'>
+        <Button
+          className='mt-4'
+          onClick={() => {
+            router.push('/');
+          }}
+        >
+          ルームを退出
+        </Button>
+        <div className='flex gap-4'>
           <h1>{room?.name}</h1>
-          {isRefreshing && <span className='animate-pulse text-xs text-gray-400'>更新中...</span>}
+          <p>ルームコード: {room?.roomCode}</p>
+          <p>最大参加者数: {room?.maxUsers}人</p>
         </div>
-
-        <p>ルームコード: {room?.roomCode}</p>
-        <p>ステータス: {room?.isActive ? 'アクティブ' : '非アクティブ'}</p>
-        <p>最大参加者数: {room?.maxUsers}人</p>
+        {isRefreshing && <span className='animate-pulse text-xs text-gray-400'>更新中...</span>}
 
         <div>
           <h2>参加者 ({roomUsers.length}人)</h2>
           <ul className='space-y-1'>
-            {roomUsers.map((roomUser, index) => (
-              <li key={index} className='flex items-center gap-2'>
-                <span className='h-2 w-2 rounded-full bg-green-500'></span>
-                {roomUser.user.name}
-                <span className='text-sm text-gray-500'>
-                  (参加日: {new Date(roomUser.createdAt).toLocaleDateString()})
-                </span>
-              </li>
-            ))}
+            <Card className='w-full max-w-sm'>
+              <CardContent>
+                <p>ユーザー名</p>
+                {roomUsers.map((roomUser, index) => (
+                  <div key={index} className='grid gap-2'>
+                    <Input value={roomUser.user.name} readOnly />
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
           </ul>
+          <div className='flex gap-4'>
+            <Button
+              className='mt-4'
+              onClick={() => {
+                // ランダムでゲームを選択
+                const games = ['/games/timing-stop', '/games/button-mashing'];
+
+                const randomGame = games[Math.floor(Math.random() * games.length)];
+                router.push(randomGame);
+              }}
+            >
+              ゲームに進む
+            </Button>
+          </div>
         </div>
 
         {lastUpdated && (
