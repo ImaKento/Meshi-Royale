@@ -2,11 +2,6 @@
 import React, { useEffect, useRef, useState } from "react";
 
 // Dodge Game (Start → 3s countdown → Run 30s → Result, light theme)
-// - 矢印/WASDで移動（斜めは速度正規化）
-// - 700ms → 250ms まで徐々に湧き間隔が短縮、落下速度も上昇
-// - 当たったら即終了。30秒生存でクリア
-// - スマホ/タブ: キャンバス上でドラッグでも移動可能
-// - 一回きりのプレイ（Startは一度だけ）
 
 type GameState =
   | { kind: "idle" }
@@ -14,14 +9,7 @@ type GameState =
   | { kind: "running"; startedAt: number; endsAt: number }
   | { kind: "result"; survivedMs: number; cleared: boolean };
 
-type Obstacle = {
-  x: number;
-  y: number;
-  w: number;
-  h: number;
-  vx: number;
-  vy: number;
-};
+type Obstacle = { x: number; y: number; w: number; h: number; vx: number; vy: number };
 
 const COUNTDOWN_MS = 3000;
 const ROUND_MS = 30_000;
@@ -43,8 +31,7 @@ const DESIGN_H = 480;
 const clamp = (v: number, min: number, max: number) => Math.min(max, Math.max(min, v));
 const uiScale = (H: number) => clamp(H / DESIGN_H, 0.6, 1.15);
 const infobarH = (H: number) => Math.max(40, Math.round(56 * uiScale(H)));
-const font = (px: number, H: number, weight = "600") =>
-  `${weight} ${Math.max(10, Math.round(px * uiScale(H)))}px ui-sans-serif, system-ui`;
+const font = (px: number, H: number, weight = "600") => `${weight} ${Math.max(10, Math.round(px * uiScale(H)))}px ui-sans-serif, system-ui`;
 
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
 const fmtSec = (ms: number) => (ms / 1000).toFixed(2) + "s";
@@ -63,31 +50,19 @@ export default function DodgeGame() {
   const rafRef = useRef<number | null>(null);
 
   const hasPlayedRef = useRef(false); // 一回きり制御
-
-  // ★ 生存秒（ローカル保持用・表示には使わない）
   const survivedSecRef = useRef<number>(0);
 
-  // 入力 & ワールド
   const keysRef = useRef<Set<string>>(new Set());
   const isDraggingRef = useRef(false);
 
   const worldRef = useRef<{
-    px: number; py: number;
-    obstacles: Obstacle[];
-    lastTs: number | null;
-    lastSpawnMs: number;
-    startMsRef: number;
-  }>({
-    px: 0, py: 0,
-    obstacles: [],
-    lastTs: null,
-    lastSpawnMs: 0,
-    startMsRef: 0,
-  });
+    px: number; py: number; obstacles: Obstacle[]; lastTs: number | null;
+    lastSpawnMs: number; startMsRef: number;
+  }>({ px: 0, py: 0, obstacles: [], lastTs: null, lastSpawnMs: 0, startMsRef: 0 });
 
   // ===== 画面遷移 =====
   function start() {
-    if (hasPlayedRef.current) return;      // 一回きり
+    if (hasPlayedRef.current) return;         // 一回きり
     if (state.kind !== "idle") return;
     hasPlayedRef.current = true;
     setState({ kind: "countdown", endAt: performance.now() + COUNTDOWN_MS });
@@ -116,10 +91,7 @@ export default function DodgeGame() {
       let survivedMs = 0;
       if (prev.kind === "running") survivedMs = performance.now() - prev.startedAt;
       else if (prev.kind === "countdown") survivedMs = 0;
-
-      // ★ ローカルに「秒」で保持（小数も保持）
       survivedSecRef.current = survivedMs / 1000;
-
       return { kind: "result", survivedMs, cleared };
     });
   }
@@ -146,10 +118,7 @@ export default function DodgeGame() {
         keysRef.current.add(k);
       }
     }
-    function up(e: KeyboardEvent) {
-      const k = e.key.toLowerCase();
-      keysRef.current.delete(k);
-    }
+    function up(e: KeyboardEvent) { keysRef.current.delete(e.key.toLowerCase()); }
     window.addEventListener("keydown", down);
     window.addEventListener("keyup", up);
     return () => {
@@ -163,11 +132,11 @@ export default function DodgeGame() {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
-    function getLocalPos(ev: PointerEvent): { x: number; y: number } {
+    function getLocalPos(ev: PointerEvent) {
       const r = canvas!.getBoundingClientRect();
       return { x: ev.clientX - r.left, y: ev.clientY - r.top };
     }
-    function clampPlayer(x: number, y: number): { x: number; y: number } {
+    function clampPlayer(x: number, y: number) {
       const r = PLAYER_RADIUS;
       const rect = canvas!.getBoundingClientRect();
       const W = Math.max(1, Math.round(rect.width));
@@ -181,16 +150,14 @@ export default function DodgeGame() {
       isDraggingRef.current = true;
       const p = getLocalPos(e);
       const c = clampPlayer(p.x, p.y);
-      worldRef.current.px = c.x;
-      worldRef.current.py = c.y;
+      worldRef.current.px = c.x; worldRef.current.py = c.y;
       canvas!.setPointerCapture(e.pointerId);
     }
     function onMove(e: PointerEvent) {
       if (state.kind !== "running" || !isDraggingRef.current) return;
       const p = getLocalPos(e);
       const c = clampPlayer(p.x, p.y);
-      worldRef.current.px = c.x;
-      worldRef.current.py = c.y;
+      worldRef.current.px = c.x; worldRef.current.py = c.y;
     }
     function onUp(e: PointerEvent) {
       isDraggingRef.current = false;
@@ -218,7 +185,7 @@ export default function DodgeGame() {
     const ctx: CanvasRenderingContext2D = ctxRaw;
     const canvasEl: HTMLCanvasElement = canvas;
 
-    function fitCanvas(c: HTMLCanvasElement, context: CanvasRenderingContext2D): { W: number; H: number } {
+    function fitCanvas(c: HTMLCanvasElement, context: CanvasRenderingContext2D) {
       const dpr = window.devicePixelRatio || 1;
       const rect = c.getBoundingClientRect();
       const cssW = Math.max(1, Math.round(rect.width));
@@ -274,19 +241,17 @@ export default function DodgeGame() {
           : state.kind === "countdown"
           ? "カウントダウン中…"
           : state.kind === "result"
-          ? "" // 結果では何も表示しない
+          ? ""
           : (hasPlayedRef.current ? "このゲームは一度だけプレイできます" : "Start で開始");
 
       if (title) ctx.fillText(title, W / 2, Math.round(barH * 0.6));
       ctx.textAlign = "start";
     }
 
-    // カウントダウン（中央）
     function drawCountdownBig(W: number, H: number, remainingMs: number) {
       const bar = infobarH(H);
       const areaH = H - bar;
       const centerY = bar + areaH / 2;
-
       const text = String(Math.ceil(remainingMs / 1000));
 
       let px = Math.round(96 * uiScale(H));
@@ -294,19 +259,13 @@ export default function DodgeGame() {
       const maxPxByH = Math.floor(areaH * 0.45);
       px = Math.min(px, maxPxByH);
 
-      const setFont = (size: number) => {
-        ctx.font = `${800} ${size}px ui-sans-serif, system-ui`;
-      };
-
+      const setFont = (size: number) => { ctx.font = `${800} ${size}px ui-sans-serif, system-ui`; };
       setFont(px);
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
 
       const maxW = Math.floor(W * 0.9);
-      while (px > minPx && ctx.measureText(text).width > maxW) {
-        px -= 2;
-        setFont(px);
-      }
+      while (px > minPx && ctx.measureText(text).width > maxW) { px -= 2; setFont(px); }
 
       ctx.fillStyle = "#111827";
       ctx.fillText(text, W / 2, centerY);
@@ -329,9 +288,7 @@ export default function DodgeGame() {
 
     function drawObstacles() {
       ctx.fillStyle = "#ef4444";
-      for (const o of worldRef.current.obstacles) {
-        ctx.fillRect(o.x, o.y, o.w, o.h);
-      }
+      for (const o of worldRef.current.obstacles) ctx.fillRect(o.x, o.y, o.w, o.h);
     }
 
     function loop(ts: number) {
@@ -377,14 +334,8 @@ export default function DodgeGame() {
           const o = obs[i];
           o.x += o.vx * dt;
           o.y += o.vy * dt;
-          if (o.y > H || o.x + o.w < 0 || o.x > W || o.y + o.h < barH) {
-            obs.splice(i, 1);
-            continue;
-          }
-          if (circleRectHit(worldRef.current.px, worldRef.current.py, r, o.x, o.y, o.w, o.h)) {
-            finish(false);
-            break;
-          }
+          if (o.y > H || o.x + o.w < 0 || o.x > W || o.y + o.h < barH) { obs.splice(i, 1); continue; }
+          if (circleRectHit(worldRef.current.px, worldRef.current.py, r, o.x, o.y, o.w, o.h)) { finish(false); break; }
         }
 
         drawBg(W, H, remainingMs);
@@ -393,18 +344,13 @@ export default function DodgeGame() {
 
         if (remainingMs <= 0) finish(true);
       } else {
-        const remainingMs =
-          state.kind === "countdown" ? Math.max(0, state.endAt - performance.now()) : ROUND_MS;
+        const remainingMs = state.kind === "countdown" ? Math.max(0, state.endAt - performance.now()) : ROUND_MS;
         drawBg(W, H, remainingMs);
 
         ctx.textAlign = "center";
         ctx.fillStyle = "#111827";
         if (state.kind === "idle") {
-          ctx.font = font(20, H, "600");
-          ctx.fillText(
-            hasPlayedRef.current ? "このゲームは一度だけプレイできます" : "Start を押すと 3 秒カウントダウン",
-            W / 2, H / 2
-          );
+          // ゲーム画面には来ない（Start専用画面でStart押下待ち）
         } else if (state.kind === "countdown") {
           drawCountdownBig(W, H, remainingMs);
         } else if (state.kind === "result") {
@@ -425,45 +371,51 @@ export default function DodgeGame() {
   }, [state]);
 
   // ===== UI =====
-  return (
+  const StartScreen = (
+    <div className="min-h-[100dvh] flex flex-col items-center justify-center bg-white p-6">
+      <h1 className="text-slate-900 text-3xl sm:text-4xl font-extrabold tracking-tight mb-8 text-center">
+        Avoidance Game
+      </h1>
+      <button
+        aria-label="Start"
+        onClick={start}
+        className="w-28 h-28 sm:w-32 sm:h-32 rounded-full bg-emerald-600 text-white font-bold text-xl sm:text-2xl shadow-xl
+                   hover:bg-emerald-500 active:scale-[0.98] transition
+                   focus:outline-none focus-visible:ring-4 focus-visible:ring-emerald-400/50
+                   grid place-items-center select-none"
+      >
+        Start
+      </button>
+      <p className="mt-8 text-slate-600 text-sm text-center">
+        矢印 / WASD で移動 <br />
+        （モバイルはドラッグ）<br />
+        30秒耐えればクリア！
+      </p>
+    </div>
+  );
+
+  const GameScreen = (
     <div className="min-h-[100dvh] flex items-center justify-center bg-white p-4 sm:p-6">
       <div className="w-full max-w-3xl grid gap-4">
-        <header className="flex items-center justify-between">
-          <h1 className="text-slate-900 text-xl sm:text-2xl font-bold">Avoidance Game</h1>
-          <div className="flex gap-2 items-center">
-            {state.kind === "idle" && !hasPlayedRef.current && (
-              <button
-                onClick={start}
-                className="px-3 py-1.5 rounded-2xl bg-emerald-600 text-white font-semibold shadow hover:bg-emerald-500"
-              >
-                Start
-              </button>
-            )}
-            {state.kind === "countdown" && (
-              <span className="px-2 py-0.5 rounded-xl bg-amber-500 text-white font-semibold shadow text-xs sm:text-sm">
-                Countdown…
-              </span>
-            )}
-            {state.kind === "running" && (
-              <span className="px-3 py-1.5 rounded-2xl bg-blue-600 text-white font-semibold shadow text-xs sm:text-sm">
-                Playing…
-              </span>
-            )}
-            {/* 一回きり：resultでも再プレイボタンは出さない */}
-          </div>
+        {/* ヘッダ：ゲーム名のみ（ボタン類はナシ） */}
+        <header className="flex items-center justify-center">
+          <h1 className="text-slate-900 text-xl sm:text-2xl font-bold tracking-tight">
+            Avoidance Game
+          </h1>
         </header>
 
+        {/* キャンバスカード */}
         <div className="rounded-2xl overflow-hidden ring-1 ring-slate-200 shadow">
           {/* モバイルは縦長、md以上は16:9 */}
           <div className="w-full aspect-[9/16] md:aspect-[16/9]">
             <canvas ref={canvasRef} className="w-full h-full" />
           </div>
         </div>
-
-        <p className="text-slate-600 text-xs sm:text-sm">
-          操作: 矢印 / WASD（モバイルはキャンバス上をドラッグ）。当たったら即終了、30秒耐えられたらクリア！
-        </p>
       </div>
     </div>
   );
+
+  // idle の間は Start 専用画面、それ以降はゲーム画面
+  if (state.kind === "idle") return StartScreen;
+  return GameScreen;
 }
