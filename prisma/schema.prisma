@@ -10,23 +10,25 @@ datasource db {
 }
 
 model User {
-  id              String     @id @default(uuid())
-  createdAt       DateTime   @default(now())
-  updatedAt       DateTime   @updatedAt
-  name            String     @default("ゲスト")
+  id              String        @id @default(uuid())
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  name            String        @default("ゲスト")
   food_candidates String?
+  gameResults     GameResults[]
   roomUsers       RoomUser[]
 }
 
 model Room {
-  id        String     @id @default(uuid())
-  name      String     @default("新しいルーム")
-  roomCode  String     @unique
-  isActive  Boolean    @default(true)
-  maxUsers  Int        @default(4)
-  createdAt DateTime   @default(now())
-  updatedAt DateTime   @updatedAt
-  roomUsers RoomUser[]
+  id          String        @id @default(uuid())
+  name        String        @default("新しいルーム")
+  roomCode    String        @unique
+  isActive    Boolean       @default(true)
+  maxUsers    Int           @default(4)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  gameResults GameResults[]
+  roomUsers   RoomUser[]
 }
 
 model RoomUser {
@@ -38,4 +40,16 @@ model RoomUser {
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@id([roomId, userId])
+}
+
+model GameResults {
+  id        String   @id @default(uuid())
+  roomId    String
+  userId    String
+  gameType  String
+  scores    Float
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  room      Room     @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
