@@ -127,11 +127,18 @@ function RoomPage({ params }: { params: Promise<{ roomCode: string }> }) {
             <Button
               className='mt-4'
               onClick={() => {
-                // ランダムでゲームを選択
+                // roomCodeから一意にゲームを決定
                 const games = ['/games/timing-stop', '/games/button-mashing'];
 
-                const randomGame = games[Math.floor(Math.random() * games.length)];
-                router.push(randomGame);
+                // roomCodeをハッシュ化して一意なインデックスを生成
+                const hash = roomCode.split('').reduce((acc, char, index) => {
+                  return acc + char.charCodeAt(0) * (index + 1);
+                }, 0);
+
+                const gameIndex = Math.abs(hash) % games.length;
+                const selectedGame = games[gameIndex];
+
+                router.push(selectedGame);
               }}
             >
               ゲームに進む
