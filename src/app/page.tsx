@@ -1,85 +1,152 @@
-import Image from 'next/image';
+'use client';
+
+import { useRouter } from 'next/navigation';
+import { useState } from 'react';
+
+import { Button } from '../components/ui/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '../components/ui/dialog';
 
 export default function Home() {
-  return (
-    <div className='grid min-h-screen grid-rows-[20px_1fr_20px] items-center justify-items-center gap-16 p-8 pb-20 font-sans sm:p-20'>
-      <main className='row-start-2 flex flex-col items-center gap-[32px] sm:items-start'>
-        <Image
-          className='dark:invert'
-          src='/next.svg'
-          alt='Next.js logo'
-          width={180}
-          height={38}
-          priority
-        />
-        <h1>Welcome to Tanaka Strong Hold !!</h1>
-        <h1>Welcome to Tanaka Lab !!</h1>
-        <ol className='list-inside list-decimal text-center font-mono text-sm/6 sm:text-left'>
-          <li className='mb-2 tracking-[-.01em]'>
-            Get started by editing{' '}
-            <code className='rounded bg-black/[.05] px-1 py-0.5 font-mono font-semibold dark:bg-white/[.06]'>
-              src/app/page.tsx
-            </code>
-            .
-          </li>
-          <li className='tracking-[-.01em]'>Save and see your changes instantly.</li>
-        </ol>
+  const router = useRouter();
+  const [roomCode, setRoomCode] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
 
-        <div className='flex flex-col items-center gap-4 sm:flex-row'>
-          <a
-            className='bg-foreground text-background flex h-10 items-center justify-center gap-2 rounded-full border border-solid border-transparent px-4 text-sm font-medium transition-colors hover:bg-[#383838] sm:h-12 sm:w-auto sm:px-5 sm:text-base dark:hover:bg-[#ccc]'
-            href='https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app'
-            target='_blank'
-            rel='noopener noreferrer'
-          >
-            <Image
-              className='dark:invert'
-              src='/vercel.svg'
-              alt='Vercel logomark'
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className='flex h-10 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-4 text-sm font-medium transition-colors hover:border-transparent hover:bg-[#f2f2f2] sm:h-12 sm:w-auto sm:px-5 sm:text-base md:w-[158px] dark:border-white/[.145] dark:hover:bg-[#1a1a1a]'
-            href='https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app'
-            target='_blank'
-            rel='noopener noreferrer'
-          >
-            Read our docs
-          </a>
-        </div>
-      </main>
-      <footer className='row-start-3 flex flex-wrap items-center justify-center gap-[24px]'>
-        <a
-          className='flex items-center gap-2 hover:underline hover:underline-offset-4'
-          href='https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app'
-          target='_blank'
-          rel='noopener noreferrer'
-        >
-          <Image aria-hidden src='/file.svg' alt='File icon' width={16} height={16} />
-          Learn
-        </a>
-        <a
-          className='flex items-center gap-2 hover:underline hover:underline-offset-4'
-          href='https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app'
-          target='_blank'
-          rel='noopener noreferrer'
-        >
-          <Image aria-hidden src='/window.svg' alt='Window icon' width={16} height={16} />
-          Examples\kjsakdjfsak
-        </a>
-        <a
-          className='flex items-center gap-2 hover:underline hover:underline-offset-4'
-          href='https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app'
-          target='_blank'
-          rel='noopener noreferrer'
-        >
-          <Image aria-hidden src='/globe.svg' alt='Globe icon' width={16} height={16} />
-          Go to nextjs.org →
-        </a>
-      </footer>
+  const createUser = async () => {
+    const response = await fetch('/api/users', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ name: 'ゲスト' }),
+    });
+
+    if (!response.ok) {
+      throw new Error('ユーザーの作成に失敗しました');
+    }
+
+    const data = await response.json();
+    return data.user.id;
+  };
+
+  const createRoomUser = async ({ roomCode, userId }: { roomCode: string; userId: string }) => {
+    const response = await fetch('/api/room-users', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ roomCode: roomCode, userId: userId }),
+    });
+
+    if (!response.ok) {
+      throw new Error('ルームユーザーの作成に失敗しました');
+    }
+  };
+
+  const generateRoomCode = () => {
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+    let result = '';
+    for (let i = 0; i < 6; i++) {
+      result += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return result;
+  };
+
+  const handleCreateRoom = async () => {
+    setIsLoading(true);
+    try {
+      const newRoomCode = generateRoomCode();
+
+      // APIルートを呼び出してルームを作成
+      const response = await fetch('/api/rooms', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ roomCode: newRoomCode }),
+      });
+
+      if (response.ok) {
+        const userId = await createUser();
+        await createRoomUser({ roomCode: newRoomCode, userId });
+        router.push(`/room/${newRoomCode}`);
+      } else {
+        const error = await response.json();
+        alert(error.error || 'ルームの作成に失敗しました');
+      }
+    } catch (error) {
+      console.error('ルーム作成エラー:', error);
+      alert('ルームの作成に失敗しました');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleJoinRoom = async () => {
+    if (!roomCode.trim()) return;
+
+    setIsLoading(true);
+    try {
+      // APIルートを呼び出してルームを検索
+      const response = await fetch(`/api/rooms?roomCode=${roomCode}`);
+
+      if (response.ok) {
+        const userId = await createUser();
+        await createRoomUser({ roomCode, userId });
+        router.push(`/room/${roomCode}`);
+      } else {
+        const error = await response.json();
+        alert(error.error || 'ルームが見つかりません');
+      }
+    } catch (error) {
+      console.error('ルーム参加エラー:', error);
+      alert('ルームの参加に失敗しました');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  return (
+    <div className='flex h-screen items-center justify-center'>
+      <div className='flex flex-col gap-4'>
+        <Button onClick={handleCreateRoom} disabled={isLoading}>
+          {isLoading ? '作成中...' : 'ルームを作成'}
+        </Button>
+
+        <Dialog>
+          <DialogTrigger asChild>
+            <Button disabled={isLoading}>ルームに入る</Button>
+          </DialogTrigger>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>ルームIDを入力</DialogTitle>
+            </DialogHeader>
+
+            <div className='space-y-4'>
+              <input
+                type='text'
+                placeholder='ルームIDを入力してください'
+                value={roomCode}
+                onChange={e => setRoomCode(e.target.value)}
+                className='w-full rounded-md border px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:outline-none'
+                disabled={isLoading}
+              />
+            </div>
+
+            <DialogFooter>
+              <Button onClick={handleJoinRoom} disabled={!roomCode.trim() || isLoading}>
+                {isLoading ? '入室中...' : '入室'}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      </div>
     </div>
   );
 }
