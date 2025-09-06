@@ -2,6 +2,8 @@
 
 import React, { Suspense, useEffect, useRef, useState } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
+import React, { Suspense, useEffect, useRef, useState } from 'react';
+
 import { supabase } from '../../../lib/supabase';
 
 // Dodge Game (Start → 3s countdown → Run 30s → Result, light theme)
@@ -27,8 +29,10 @@ const SPAWN_INTERVAL_START = 700;
 const SPAWN_INTERVAL_END = 250;
 const OB_SPEED_START = 180;
 const OB_SPEED_END = 360;
-const OB_W_MIN = 24, OB_W_MAX = 56;
-const OB_H_MIN = 16, OB_H_MAX = 44;
+const OB_W_MIN = 24,
+  OB_W_MAX = 56;
+const OB_H_MIN = 16,
+  OB_H_MAX = 44;
 
 // レイアウト・フォント
 const DESIGN_H = 480;
@@ -42,8 +46,13 @@ const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
 const fmtSec = (ms: number) => (ms / 1000).toFixed(2) + 's';
 
 function circleRectHit(
-  cx: number, cy: number, r: number,
-  rx: number, ry: number, rw: number, rh: number
+  cx: number,
+  cy: number,
+  r: number,
+  rx: number,
+  ry: number,
+  rw: number,
+  rh: number
 ) {
   const nx = Math.max(rx, Math.min(cx, rx + rw));
   const ny = Math.max(ry, Math.min(cy, ry + rh));
@@ -54,9 +63,9 @@ function circleRectHit(
 
 // ===== ランキング生成（競技順位: 1,2,2,4） =====
 // order: 'desc' は大きいほど上位（生存時間ms）、'asc' は小さいほど上位（誤差msなど）
-function buildLeaderboard<T extends { id?: string; scores?: number; created_at?: string; createdAt?: string }>(
-  rows: T[], order: 'asc' | 'desc' = 'desc'
-) {
+function buildLeaderboard<
+  T extends { id?: string; scores?: number; created_at?: string; createdAt?: string },
+>(rows: T[], order: 'asc' | 'desc' = 'desc') {
   const sorted = rows.slice().sort((a, b) => {
     const as = Number(a?.scores ?? (order === 'asc' ? Infinity : -Infinity));
     const bs = Number(b?.scores ?? (order === 'asc' ? Infinity : -Infinity));
@@ -94,6 +103,7 @@ function DodgeGameContent() {
   const [roomId, setRoomId] = useState<string | null>(null);
   const [gameResults, setGameResults] = useState<any[]>([]);
   const [allDone, setAllDone] = useState(false);
+  const [destinatedStore, setDestinatedStore] = useState<string | null>(null);
 
   // ===== ゲーム状態 =====
   const [state, setState] = useState<GameState>({ kind: 'idle' });
@@ -109,8 +119,12 @@ function DodgeGameContent() {
   const isDraggingRef = useRef(false);
 
   const worldRef = useRef<{
-    px: number; py: number; obstacles: Obstacle[]; lastTs: number | null;
-    lastSpawnMs: number; startMsRef: number;
+    px: number;
+    py: number;
+    obstacles: Obstacle[];
+    lastTs: number | null;
+    lastSpawnMs: number;
+    startMsRef: number;
   }>({ px: 0, py: 0, obstacles: [], lastTs: null, lastSpawnMs: 0, startMsRef: 0 });
 
   // === 仮想スティック（アナログ） ===
@@ -135,7 +149,9 @@ function DodgeGameContent() {
         console.error('ルームID取得エラー:', e);
       }
     })();
-    return () => { aborted = true; };
+    return () => {
+      aborted = true;
+    };
   }, [roomCode]);
 
   // ===== Realtime購読（INSERT/UPDATE）: サーバーフィルタ無し＋手動チェック =====
@@ -161,6 +177,9 @@ function DodgeGameContent() {
             if (resp.ok && data?.gameResults) {
               const list = data.gameResults as any[];
               setGameResults(list);
+              const userResponse = await fetch(`/api/users/${list[0].user.id}`);
+              const userData = await userResponse.json();
+              setDestinatedStore(userData.item.food_candidates);
               if (totalPlayers > 0 && list.length >= totalPlayers) setAllDone(true); // state.kind ガード無し
             }
           } catch (e) {
@@ -170,7 +189,9 @@ function DodgeGameContent() {
       )
       .subscribe();
 
-    return () => { supabase.removeChannel(channel); };
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [roomId, gameType, totalPlayers]);
 
   // ===== 初期データ取得（ガード無しで allDone 判定） =====
@@ -209,7 +230,10 @@ function DodgeGameContent() {
     const barHVal = infobarH(H);
 
     worldRef.current.px = W / 2;
-    worldRef.current.py = Math.min(H - PLAYER_RADIUS - 4, Math.max(barHVal + PLAYER_RADIUS + 4, H * 0.7));
+    worldRef.current.py = Math.min(
+      H - PLAYER_RADIUS - 4,
+      Math.max(barHVal + PLAYER_RADIUS + 4, H * 0.7)
+    );
     worldRef.current.obstacles = [];
     worldRef.current.lastTs = null;
     worldRef.current.lastSpawnMs = 0;
@@ -283,17 +307,22 @@ function DodgeGameContent() {
   useEffect(() => {
     function down(e: KeyboardEvent) {
       if (e.key === ' ' || e.key === 'Enter') {
-        if (state.kind === 'idle' && !hasPlayedRef.current) { e.preventDefault(); start(); }
+        if (state.kind === 'idle' && !hasPlayedRef.current) {
+          e.preventDefault();
+          start();
+        }
         return;
       }
       if (state.kind !== 'running') return;
       const k = e.key.toLowerCase();
-      if (['arrowup','w','arrowdown','s','arrowleft','a','arrowright','d'].includes(k)) {
+      if (['arrowup', 'w', 'arrowdown', 's', 'arrowleft', 'a', 'arrowright', 'd'].includes(k)) {
         e.preventDefault();
         keysRef.current.add(k);
       }
     }
-    function up(e: KeyboardEvent) { keysRef.current.delete(e.key.toLowerCase()); }
+    function up(e: KeyboardEvent) {
+      keysRef.current.delete(e.key.toLowerCase());
+    }
     window.addEventListener('keydown', down);
     window.addEventListener('keyup', up);
     return () => {
@@ -325,18 +354,22 @@ function DodgeGameContent() {
       isDraggingRef.current = true;
       const p = getLocalPos(e);
       const c = clampPlayer(p.x, p.y);
-      worldRef.current.px = c.x; worldRef.current.py = c.y;
+      worldRef.current.px = c.x;
+      worldRef.current.py = c.y;
       canvas!.setPointerCapture(e.pointerId);
     }
     function onMove(e: PointerEvent) {
       if (state.kind !== 'running' || !isDraggingRef.current) return;
       const p = getLocalPos(e);
       const c = clampPlayer(p.x, p.y);
-      worldRef.current.px = c.x; worldRef.current.py = c.y;
+      worldRef.current.px = c.x;
+      worldRef.current.py = c.y;
     }
     function onUp(e: PointerEvent) {
       isDraggingRef.current = false;
-      try { canvas!.releasePointerCapture(e.pointerId); } catch {}
+      try {
+        canvas!.releasePointerCapture(e.pointerId);
+      } catch {}
     }
 
     canvas.addEventListener('pointerdown', onDown);
@@ -455,7 +488,7 @@ function DodgeGameContent() {
     function spawnObstacle(W: number, H: number, elapsedMs: number) {
       const t = Math.min(1, elapsedMs / ROUND_MS);
       const speed = lerp(OB_SPEED_START, OB_SPEED_END, t);
-      const side = Math.random() < 0.85 ? 'top' : (Math.random() < 0.5 ? 'left' : 'right');
+      const side = Math.random() < 0.85 ? 'top' : Math.random() < 0.5 ? 'left' : 'right';
       const barHVal = infobarH(H);
 
       if (side === 'top') {
@@ -490,11 +523,15 @@ function DodgeGameContent() {
       ctx.textAlign = 'center';
 
       const title =
-        state.kind === 'running' ? `避けろ！ 残り ${Math.ceil(remainingMs / 1000)} 秒`
-        : state.kind === 'countdown' ? 'カウントダウン中…'
-        : state.kind === 'result' ? ''
-        : hasPlayedRef.current ? 'このゲームは一度だけプレイできます'
-        : 'Start で開始';
+        state.kind === 'running'
+          ? `避けろ！ 残り ${Math.ceil(remainingMs / 1000)} 秒`
+          : state.kind === 'countdown'
+            ? 'カウントダウン中…'
+            : state.kind === 'result'
+              ? ''
+              : hasPlayedRef.current
+                ? 'このゲームは一度だけプレイできます'
+                : 'Start で開始';
 
       if (title) ctx.fillText(title, W / 2, Math.round(barHVal * 0.6));
       ctx.textAlign = 'start';
@@ -511,13 +548,18 @@ function DodgeGameContent() {
       const maxPxByH = Math.floor(areaH * 0.45);
       px = Math.min(px, maxPxByH);
 
-      const setFont = (size: number) => { ctx.font = `${800} ${size}px ui-sans-serif, system-ui`; };
+      const setFont = (size: number) => {
+        ctx.font = `${800} ${size}px ui-sans-serif, system-ui`;
+      };
       setFont(px);
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
 
       const maxW = Math.floor(W * 0.9);
-      while (px > minPx && ctx.measureText(text).width > maxW) { px -= 2; setFont(px); }
+      while (px > minPx && ctx.measureText(text).width > maxW) {
+        px -= 2;
+        setFont(px);
+      }
 
       ctx.fillStyle = '#111827';
       ctx.fillText(text, W / 2, centerY);
@@ -574,6 +616,7 @@ function DodgeGameContent() {
             const mag = Math.hypot(dx, dy) || 1;
             dx /= mag; dy /= mag;
           }
+
           worldRef.current.px += dx * PLAYER_SPEED * dt;
           worldRef.current.py += dy * PLAYER_SPEED * dt;
         }
@@ -585,7 +628,11 @@ function DodgeGameContent() {
         worldRef.current.py = Math.max(barHVal + r, Math.min(H - r, worldRef.current.py));
 
         // スポーン
-        const spawnInterval = lerp(SPAWN_INTERVAL_START, SPAWN_INTERVAL_END, Math.min(1, elapsedMs / ROUND_MS));
+        const spawnInterval = lerp(
+          SPAWN_INTERVAL_START,
+          SPAWN_INTERVAL_END,
+          Math.min(1, elapsedMs / ROUND_MS)
+        );
         if (elapsedMs - worldRef.current.lastSpawnMs >= spawnInterval) {
           spawnObstacle(W, H, elapsedMs);
           worldRef.current.lastSpawnMs = elapsedMs;
@@ -597,8 +644,14 @@ function DodgeGameContent() {
           const o = obs[i];
           o.x += o.vx * dt;
           o.y += o.vy * dt;
-          if (o.y > H || o.x + o.w < 0 || o.x > W || o.y + o.h < barHVal) { obs.splice(i, 1); continue; }
-          if (circleRectHit(worldRef.current.px, worldRef.current.py, r, o.x, o.y, o.w, o.h)) { finish(false); break; }
+          if (o.y > H || o.x + o.w < 0 || o.x > W || o.y + o.h < barHVal) {
+            obs.splice(i, 1);
+            continue;
+          }
+          if (circleRectHit(worldRef.current.px, worldRef.current.py, r, o.x, o.y, o.w, o.h)) {
+            finish(false);
+            break;
+          }
         }
 
         drawBg(W, H, remainingMs);
@@ -607,7 +660,8 @@ function DodgeGameContent() {
 
         if (remainingMs <= 0) finish(true);
       } else {
-        const remainingMs = state.kind === 'countdown' ? Math.max(0, state.endAt - performance.now()) : ROUND_MS;
+        const remainingMs =
+          state.kind === 'countdown' ? Math.max(0, state.endAt - performance.now()) : ROUND_MS;
         drawBg(W, H, remainingMs);
 
         ctx.textAlign = 'center';
@@ -630,26 +684,25 @@ function DodgeGameContent() {
     }
 
     rafRef.current = requestAnimationFrame(loop);
-    return () => { if (rafRef.current) cancelAnimationFrame(rafRef.current); };
+    return () => {
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+    };
   }, [state]);
 
   // ===== UI =====
   const StartScreen = (
-    <div className="min-h-[100dvh] flex flex-col items-center justify-center bg-white p-6">
-      <h1 className="text-slate-900 text-3xl sm:text-4xl font-extrabold tracking-tight mb-8 text-center">
+    <div className='flex min-h-[100dvh] flex-col items-center justify-center bg-white p-6'>
+      <h1 className='mb-8 text-center text-3xl font-extrabold tracking-tight text-slate-900 sm:text-4xl'>
         Avoidance Game
       </h1>
       <button
-        aria-label="Start"
+        aria-label='Start'
         onClick={start}
-        className="w-28 h-28 sm:w-32 sm:h-32 rounded-full bg-emerald-600 text-white font-bold text-xl sm:text-2xl shadow-xl
-                   hover:bg-emerald-500 active:scale-[0.98] transition
-                   focus:outline-none focus-visible:ring-4 focus-visible:ring-emerald-400/50
-                   grid place-items-center select-none"
+        className='grid h-28 w-28 place-items-center rounded-full bg-emerald-600 text-xl font-bold text-white shadow-xl transition select-none hover:bg-emerald-500 focus:outline-none focus-visible:ring-4 focus-visible:ring-emerald-400/50 active:scale-[0.98] sm:h-32 sm:w-32 sm:text-2xl'
       >
         Start
       </button>
-      <p className="mt-8 text-slate-600 text-sm text-center">
+      <p className='mt-8 text-center text-sm text-slate-600'>
         矢印 / WASD で移動 <br />
         （モバイルはドラッグ or 下のアナログスティック）<br />
         30秒耐えればクリア！
@@ -660,33 +713,39 @@ function DodgeGameContent() {
   // 最終結果カード（Realtime対応＋タイ処理）
   const ResultPanel =
     state.kind === 'result' ? (
-      <div className="max-w-3xl w-full mx-auto mt-4">
-        <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow">
-          <h2 className="text-slate-900 text-2xl font-bold mb-4">結果</h2>
-          <div className="grid gap-2">
-            <div className="flex items-baseline gap-3">
-              <span className="text-slate-500 text-sm">あなたの生存時間</span>
-              <span className="text-slate-900 text-xl font-extrabold">
+      <div className='mx-auto mt-4 w-full max-w-3xl'>
+        <div className='rounded-2xl border border-slate-200 bg-white p-6 shadow'>
+          <h2 className='mb-4 text-2xl font-bold text-slate-900'>結果</h2>
+          <div className='grid gap-2'>
+            <div className='flex items-baseline gap-3'>
+              <span className='text-sm text-slate-500'>あなたの生存時間</span>
+              <span className='text-xl font-extrabold text-slate-900'>
                 {fmtSec(state.survivedMs)}
               </span>
-              <span className="text-slate-500 text-sm">（{state.cleared ? 'CLEAR' : 'FAIL'}）</span>
+              <span className='text-sm text-slate-500'>（{state.cleared ? 'CLEAR' : 'FAIL'}）</span>
             </div>
           </div>
 
           {!roomId || !totalPlayers ? (
-            <p className="mt-4 text-slate-600 text-sm">
-              ルーム連携なしの単体プレイです。URLに <code>userId</code>, <code>roomCode</code>, <code>joindUserCount</code> を付けると対戦待ち＆リザルトが有効になります。
+            <p className='mt-4 text-sm text-slate-600'>
+              ルーム連携なしの単体プレイです。URLに <code>userId</code>, <code>roomCode</code>,{' '}
+              <code>joindUserCount</code> を付けると対戦待ち＆リザルトが有効になります。
             </p>
           ) : !allDone ? (
-            <p className="mt-4 text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-4 py-3 text-sm">
+            <p className='mt-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700'>
               他のプレイヤーの完了を待っています…
               <br />
               参加人数: {totalPlayers} / 受信済: {gameResults.length}
             </p>
           ) : (
-            <div className="mt-6">
-              <h3 className="text-slate-900 font-semibold mb-3">🏆 最終結果（生存時間が長い順）</h3>
-              <div className="space-y-2">
+            <div className='mt-6'>
+              <div className='my-4 rounded-lg border border-gray-300 p-8'>
+                <h2 className='flex justify-center text-4xl font-bold text-black'>
+                  {destinatedStore}に決定！！
+                </h2>
+              </div>
+              <h3 className='mb-3 font-semibold text-slate-900'>🏆 最終結果（生存時間が長い順）</h3>
+              <div className='space-y-2'>
                 {(() => {
                   const { sorted, ranks } = buildLeaderboard(gameResults, 'desc');
                   const myIdx = sorted.findIndex(r => r.userId === userId);
@@ -694,8 +753,8 @@ function DodgeGameContent() {
                   return (
                     <>
                       {typeof myRank === 'number' && (
-                        <div className="mb-3 text-slate-700 text-sm">
-                          あなたの順位: <span className="font-bold">{myRank}位</span>
+                        <div className='mb-3 text-sm text-slate-700'>
+                          あなたの順位: <span className='font-bold'>{myRank}位</span>
                         </div>
                       )}
                       {sorted.map((r: any, idx: number) => {
@@ -705,21 +764,25 @@ function DodgeGameContent() {
                           <div
                             key={r.id ?? `${r.userId}-${idx}`}
                             className={`flex items-center justify-between rounded-lg border p-3 ${
-                              isMe ? 'border-emerald-300 bg-emerald-50' : 'border-slate-200 bg-slate-50'
+                              isMe
+                                ? 'border-emerald-300 bg-emerald-50'
+                                : 'border-slate-200 bg-slate-50'
                             }`}
                           >
-                            <div className="flex items-center gap-3">
-                              <span className="text-slate-500 text-sm w-8 text-right">{rank}位</span>
-                              <span className="text-slate-900 font-semibold">
+                            <div className='flex items-center gap-3'>
+                              <span className='w-8 text-right text-sm text-slate-500'>
+                                {rank}位
+                              </span>
+                              <span className='font-semibold text-slate-900'>
                                 {r?.user?.name || 'ゲスト'}
                                 {isMe ? '（あなた）' : ''}
                               </span>
                             </div>
-                            <div className="text-right">
-                              <div className="text-slate-900 font-bold">
+                            <div className='text-right'>
+                              <div className='font-bold text-slate-900'>
                                 {fmtSec(Number(r?.scores ?? 0))}
                               </div>
-                              <div className="text-slate-500 text-xs">生存時間</div>
+                              <div className='text-xs text-slate-500'>生存時間</div>
                             </div>
                           </div>
                         );
@@ -746,19 +809,19 @@ function DodgeGameContent() {
     ) : null;
 
   const GameScreen = (
-    <div className="min-h-[100dvh] flex flex-col items-center justify-start bg-white p-4 sm:p-6">
-      <div className="w-full max-w-3xl grid gap-4">
+    <div className='flex min-h-[100dvh] flex-col items-center justify-start bg-white p-4 sm:p-6'>
+      <div className='grid w-full max-w-3xl gap-4'>
         {/* ヘッダ：ゲーム名のみ（ボタン類はナシ） */}
-        <header className="flex items-center justify-center">
-          <h1 className="text-slate-900 text-xl sm:text-2xl font-bold tracking-tight">
+        <header className='flex items-center justify-center'>
+          <h1 className='text-xl font-bold tracking-tight text-slate-900 sm:text-2xl'>
             Avoidance Game
           </h1>
         </header>
 
         {/* キャンバスカード */}
-        <div className="rounded-2xl overflow-hidden ring-1 ring-slate-200 shadow">
-          <div className="w-full aspect-[9/16] md:aspect-[16/9]">
-            <canvas ref={canvasRef} className="w-full h-full" />
+        <div className='overflow-hidden rounded-2xl shadow ring-1 ring-slate-200'>
+          <div className='aspect-[9/16] w-full md:aspect-[16/9]'>
+            <canvas ref={canvasRef} className='h-full w-full' />
           </div>
         </div>
 
