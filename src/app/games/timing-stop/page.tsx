@@ -98,6 +98,7 @@ export default function TimingStopBlind() {
 
     // デバイスピクセル比に合わせてキャンバスをフィット
     function fitCanvas() {
+      
       if (!canvas) return;
       if (!ctx) return;
 
@@ -196,7 +197,10 @@ export default function TimingStopBlind() {
     }
 
     function loop() {
-      const { W, H } = fitCanvas(); // 毎フレームでも軽いので簡便に
+      const size = fitCanvas(); // 戻り値: {W,H} | undefined
+      if (!size) return;        // ここでナローイング
+      const { W, H } = size;
+
       drawBg(W, H);
 
       if (state.kind === "idle") {
