@@ -74,9 +74,6 @@ function ClickGameContent() {
   useEffect(() => {
     if (!roomId || !gameType) return;
 
-    console.log('リアルタイム監視開始:', { roomId, gameType });
-
-    // ゲーム結果の変更を監視
     const channel = supabase
       .channel(`game-results-${roomId}`)
       .on(
@@ -85,66 +82,74 @@ function ClickGameContent() {
           event: 'INSERT',
           schema: 'public',
           table: 'GameResults',
-          filter: `roomId=eq.${roomId}`,
+          // filter: `roomId=eq.${roomId}`, // 一時的にフィルター無効
         },
         async payload => {
-          // roomIdが一致する場合のみ処理
-          if (payload.new?.roomId === roomId) {
-            console.log('✅ roomIdが一致！処理を続行');
+          // カラム名を確認（roomId vs room_id）
+          const payloadRoomId = payload.new?.roomId || payload.new?.room_id;
 
-            try {
-              // 最新のゲーム結果を取得
-              const response = await fetch(
-                `/api/gameResults?roomId=${roomId}&gameType=${gameType}`
-              );
-              const data = await response.json();
+          // 手動でroomIdをチェック
+          if (payloadRoomId !== roomId) {
+            console.log('❌ 異なるroomId - スキップ:', payloadRoomId);
+            return;
+          }
 
-              console.log('📊 取得したゲーム結果:', data);
+          try {
+            const response = await fetch(`/api/gameResults?roomId=${roomId}&gameType=${gameType}`);
+            const data = await response.json();
 
-              if (response.ok && data?.gameResults) {
-                setGameResults(data.gameResults);
+            if (response.ok && data?.gameResults) {
+              setGameResults(data.gameResults);
 
-                // 全員が完了したかチェック
-                const completedCount = data.gameResults.length;
-                const totalPlayers = parseInt(joindUserCount || '0');
+              const completedCount = data.gameResults.length;
+              const totalPlayers = parseInt(joindUserCount || '0');
 
-                console.log('✅ 完了チェック:', {
-                  completedCount,
-                  totalPlayers,
-                  currentGameState: gameState,
-                  shouldShowResults: completedCount >= totalPlayers && gameState === 'finished',
-                });
-
-                // 全員完了 + 自分も完了している場合のみ結果画面へ
-                if (completedCount >= totalPlayers && gameState === 'finished') {
-                  console.log('🏆 全員が完了！結果画面に遷移');
-                  setGameState('results');
-                }
+              if (completedCount >= totalPlayers) {
+                setGameState('results');
               }
-            } catch (error) {
-              console.error('❌ ゲーム結果取得エラー:', error);
             }
-          } else {
-            console.log('❌ roomIdが一致しないため、処理をスキップ');
+          } catch (error) {
+            console.error('❌ データ取得エラー:', error);
           }
         }
       )
       .subscribe(status => {
-        console.log('📡 Supabase接続ステータス:', status);
-
-        if (status === 'SUBSCRIBED') {
-          console.log('✅ リアルタイム監視が開始されました');
-        } else if (status === 'CHANNEL_ERROR') {
-          console.error('❌ チャンネルエラー:', status);
-        }
+        console.log('📡 接続状態:', status);
       });
 
-    // クリーンアップ
     return () => {
-      console.log('🔌 リアルタイム監視を停止');
+      console.log('🔌 監視停止');
       supabase.removeChannel(channel);
     };
-  }, [roomId, gameType, joindUserCount]); // gameStateを削除
+  }, [roomId, gameType, joindUserCount]);
+
+  // 初期データ取得も追加
+  useEffect(() => {
+    if (!roomId || !gameType) return;
+
+    const fetchInitialData = async () => {
+      try {
+        const response = await fetch(`/api/gameResults?roomId=${roomId}&gameType=${gameType}`);
+        const data = await response.json();
+
+        if (response.ok && data?.gameResults) {
+          setGameResults(data.gameResults);
+
+          const completedCount = data.gameResults.length;
+          const totalPlayers = parseInt(joindUserCount || '0');
+
+          if (completedCount >= totalPlayers && gameState === 'finished') {
+            setGameState('results');
+          }
+        }
+      } catch (error) {
+        console.error('初期データ取得エラー:', error);
+      }
+    };
+
+    fetchInitialData();
+  }, [roomId, gameType, gameState, joindUserCount]);
+
   // ゲーム結果を保存
   useEffect(() => {
     if (gameState === 'finished' && userId && roomId) {
@@ -176,46 +181,6 @@ function ClickGameContent() {
       saveGameResult();
     }
   }, [gameState, userId, roomId, gameType, clickCount]);
-
-  // ポーリング機能（リアルタイムが動作しない場合の代替）
-  useEffect(() => {
-    if (gameState === 'finished' && roomId && gameType) {
-      console.log('🔄 ポーリングを開始:', { roomId, gameType, joindUserCount });
-
-      const pollInterval = setInterval(async () => {
-        try {
-          console.log('🔄 ポーリング実行中...');
-          const response = await fetch(`/api/gameResults?roomId=${roomId}&gameType=${gameType}`);
-          const data = await response.json();
-
-          console.log('📊 ポーリング結果:', data);
-
-          if (response.ok && data?.gameResults) {
-            setGameResults(data.gameResults);
-
-            // 全員が完了したかチェック
-            const completedCount = data.gameResults.length;
-            const totalPlayers = parseInt(joindUserCount || '0');
-
-            console.log('✅ ポーリング完了チェック:', { completedCount, totalPlayers });
-
-            if (completedCount >= totalPlayers) {
-              console.log('🏆 ポーリング: 全員が完了しました！結果画面に遷移');
-              setGameState('results');
-              clearInterval(pollInterval);
-            }
-          }
-        } catch (error) {
-          console.error('❌ ポーリングエラー:', error);
-        }
-      }, 2000); // 2秒ごとにチェック
-
-      return () => {
-        console.log('🔄 ポーリングを停止');
-        clearInterval(pollInterval);
-      };
-    }
-  }, [gameState, roomId, gameType, joindUserCount]);
 
   // ゲーム開始
   const startGame = () => {
