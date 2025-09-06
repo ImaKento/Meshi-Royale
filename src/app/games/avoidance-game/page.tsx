@@ -2,6 +2,7 @@
 
 import { useSearchParams } from 'next/navigation';
 import React, { Suspense, useEffect, useRef, useState } from 'react';
+import Header from '@/components/ui/header';
 
 import { supabase } from '../../../lib/supabase';
 
@@ -590,23 +591,26 @@ function DodgeGameContent() {
 
   // ===== UI =====
   const StartScreen = (
-    <div className='flex min-h-[100dvh] flex-col items-center justify-center bg-white p-6'>
-      <h1 className='mb-8 text-center text-3xl font-extrabold tracking-tight text-slate-900 sm:text-4xl'>
-        Avoidance Game
-      </h1>
-      <button
-        aria-label='Start'
-        onClick={start}
-        className='grid h-28 w-28 place-items-center rounded-full bg-emerald-600 text-xl font-bold text-white shadow-xl transition select-none hover:bg-emerald-500 focus:outline-none focus-visible:ring-4 focus-visible:ring-emerald-400/50 active:scale-[0.98] sm:h-32 sm:w-32 sm:text-2xl'
-      >
-        Start
-      </button>
-      <p className='mt-8 text-center text-sm text-slate-600'>
-        矢印 / WASD で移動 <br />
-        （モバイルはドラッグ）
-        <br />
-        30秒耐えればクリア！
-      </p>
+    <div className='min-h-screen bg-white'>
+      <Header />
+      <main className='flex flex-col items-center justify-center p-6' style={{ minHeight: 'calc(100vh - 80px)' }}>
+        <h1 className='mb-8 text-center text-3xl font-extrabold tracking-tight text-slate-900 sm:text-4xl'>
+          Avoidance Game
+        </h1>
+        <button
+          aria-label='Start'
+          onClick={start}
+          className='grid h-28 w-28 place-items-center rounded-full bg-emerald-600 text-xl font-bold text-white shadow-xl transition select-none hover:bg-emerald-500 focus:outline-none focus-visible:ring-4 focus-visible:ring-emerald-400/50 active:scale-[0.98] sm:h-32 sm:w-32 sm:text-2xl'
+        >
+          Start
+        </button>
+        <p className='mt-8 text-center text-sm text-slate-600'>
+          矢印 / WASD で移動 <br />
+          （モバイルはドラッグ）
+          <br />
+          30秒耐えればクリア！
+        </p>
+      </main>
     </div>
   );
 
@@ -698,25 +702,29 @@ function DodgeGameContent() {
     ) : null;
 
   const GameScreen = (
-    <div className='flex min-h-[100dvh] flex-col items-center justify-start bg-white p-4 sm:p-6'>
-      <div className='grid w-full max-w-3xl gap-4'>
-        {/* ヘッダ：ゲーム名のみ（ボタン類はナシ） */}
-        <header className='flex items-center justify-center'>
-          <h1 className='text-xl font-bold tracking-tight text-slate-900 sm:text-2xl'>
-            Avoidance Game
-          </h1>
-        </header>
+    <div className='min-h-screen bg-white'>
+      <Header />
+      
+      <main className='flex flex-col items-center justify-start p-4 sm:p-6' style={{ minHeight: 'calc(100vh - 80px)' }}>
+        <div className='grid w-full max-w-3xl gap-4'>
+          {/* ヘッダ：ゲーム名のみ（ボタン類はナシ） */}
+          <header className='flex items-center justify-center'>
+            <h1 className='text-xl font-bold tracking-tight text-slate-900 sm:text-2xl'>
+              Avoidance Game
+            </h1>
+          </header>
 
-        {/* キャンバスカード */}
-        <div className='overflow-hidden rounded-2xl shadow ring-1 ring-slate-200'>
-          <div className='aspect-[9/16] w-full md:aspect-[16/9]'>
-            <canvas ref={canvasRef} className='h-full w-full' />
+          {/* キャンバスカード */}
+          <div className='overflow-hidden rounded-2xl shadow ring-1 ring-slate-200'>
+            <div className='aspect-[9/16] w-full md:aspect-[16/9]'>
+              <canvas ref={canvasRef} className='h-full w-full' />
+            </div>
           </div>
-        </div>
 
-        {/* 結果パネル（roomがある場合は待機/最終結果をここに出す） */}
-        {ResultPanel}
-      </div>
+          {/* 結果パネル（roomがある場合は待機/最終結果をここに出す） */}
+          {ResultPanel}
+        </div>
+      </main>
     </div>
   );
 
