@@ -4,6 +4,7 @@ import { useSearchParams } from 'next/navigation';
 import React, { Suspense, useEffect, useRef, useState } from 'react';
 import Header from '@/components/ui/header';
 
+
 import { supabase } from '../../../lib/supabase';
 
 function ClickGameContent() {
@@ -358,3 +359,4 @@ export default function ClickGame() {
     </Suspense>
   );
 }
+
