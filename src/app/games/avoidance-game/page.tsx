@@ -2,7 +2,7 @@
 
 import React, { Suspense, useEffect, useRef, useState } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
-import React, { Suspense, useEffect, useRef, useState } from 'react';
+
 
 import { supabase } from '../../../lib/supabase';
 
