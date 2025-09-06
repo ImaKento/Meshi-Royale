@@ -2,49 +2,36 @@
 import React, { useEffect, useRef, useState } from "react";
 
 // Timing Stop (Start → 3s countdown → Run → Result, one-shot, light theme)
-// 仕様: Start で 3 秒カウントダウン → タイマー開始。表示は 0.3×目標時間（1秒刻みで切り上げ）まで。
-// Stop で結果表示。結果後は再開・リセット不可（このページ滞在中は一回限り）。
-// Space/Enter: Idle=Start, Running=Stop（Countdown/Result中は無効）。
+// Start → 3秒カウントダウン → タイマー開始。表示は 0.3×目標（1秒刻みで切り上げ）まで。
+// Stop で結果表示。結果後は一回限りで終了。
 
-// --- Types ---
 type GameState =
   | { kind: "idle" }
   | { kind: "countdown"; endAt: number }
   | { kind: "running"; startedAt: number }
-  // 誤差の絶対値(ms)のみ保持（±は表示時に算出）
   | { kind: "result"; elapsedMs: number; targetMs: number; signedErrorMs: number; rating: string };
 
-// --- Constants ---
-const WIDTH = 720;
-const HEIGHT = 260;
+const BASE_HEIGHT = 260;           // キャンバスのCSS高さ（px）※幅はコンテナに合わせる
+const INFOBAR_HEIGHT = 64;         // 上部グレーのバー高さ
+const TARGET_SEC = 10;             // 固定の目標時間（必要なら変更）
 
-// 固定の目標時間（秒）
-const TARGET_SEC = 10;
+const THRESHOLDS = { perfect: 15, great: 50, good: 150 };
 
-const THRESHOLDS = {
-  perfect: 15,
-  great: 50,
-  good: 150,
-};
-
-// 約30%を 1.0 s 刻みで「切り上げ」
 function visibleUntilMsFor(targetMs: number) {
-  const raw = 0.3 * targetMs; // 30%
-  const step = 1000;          // 1.0 s
+  const raw = 0.3 * targetMs;
+  const step = 1000;
   const snapped = Math.ceil(raw / step) * step; // 切り上げ
-  return Math.max(step, snapped);               // 最低1.0s 可視
+  return Math.max(step, snapped);
 }
-
 function ratingFor(absErrorMs: number) {
   if (absErrorMs <= THRESHOLDS.perfect) return "Perfect";
   if (absErrorMs <= THRESHOLDS.great) return "Great";
   if (absErrorMs <= THRESHOLDS.good) return "Good";
   return "Miss";
 }
-
 function formatSignedSeconds(ms: number) {
   const s = ms / 1000;
-  const sign = s > 0 ? "+" : s < 0 ? "−" : "±"; // U+2212
+  const sign = s > 0 ? "+" : s < 0 ? "−" : "±";
   return `${sign}${Math.abs(s).toFixed(3)}s`;
 }
 
@@ -55,10 +42,9 @@ export default function TimingStopBlind() {
   const [state, setState] = useState<GameState>({ kind: "idle" });
   const [bestErrorMs, setBestErrorMs] = useState<number>(Infinity);
 
-  // ベスト誤差は復元（任意）
+  // ベスト誤差の復元（任意）
   useEffect(() => {
     try {
-      if (typeof window === "undefined") return;
       const savedBest = localStorage.getItem("timing_best_error_ms");
       if (savedBest != null) setBestErrorMs(Number(savedBest));
     } catch {}
@@ -68,126 +54,131 @@ export default function TimingStopBlind() {
   const visibleUntilMs = visibleUntilMsFor(targetMs);
 
   function start() {
-    if (state.kind !== "idle") return; // 一回限り
-    const endAt = performance.now() + 3000; // 3秒後に走行開始
-    setState({ kind: "countdown", endAt });
+    if (state.kind !== "idle") return;
+    setState({ kind: "countdown", endAt: performance.now() + 3000 });
   }
-
   function stop() {
     if (state.kind !== "running") return;
     const now = performance.now();
     const elapsedMs = now - state.startedAt;
-    const signed = elapsedMs - targetMs; // 表示用の符号（保持はしない）
-    const absErr = Math.abs(signed);     // ← 誤差の絶対値のみ保持
+    const absErr = Math.abs(elapsedMs - targetMs); // ← 誤差の絶対値のみ保持
     const rating = ratingFor(absErr);
     setState({ kind: "result", elapsedMs, targetMs, signedErrorMs: absErr, rating });
-
     if (absErr < bestErrorMs) {
       setBestErrorMs(absErr);
-      try {
-        if (typeof window !== "undefined") {
-          localStorage.setItem("timing_best_error_ms", String(absErr));
-        }
-      } catch {}
+      try { localStorage.setItem("timing_best_error_ms", String(absErr)); } catch {}
     }
   }
-
-  // カウントダウン完了で自動的に running へ
   useEffect(() => {
     if (state.kind !== "countdown") return;
     const delay = Math.max(0, state.endAt - performance.now());
-    const t = setTimeout(() => {
-      setState({ kind: "running", startedAt: performance.now() });
-    }, delay);
+    const t = setTimeout(() => setState({ kind: "running", startedAt: performance.now() }), delay);
     return () => clearTimeout(t);
   }, [state]);
 
-  // Keyboard（一回限り仕様に合わせて result では Start しない。Reset もなし）
+  // キーボード: 一回限り（resultでの再開なし）
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if (e.key === " " || e.key === "Enter") {
         e.preventDefault();
         if (state.kind === "idle") start();
         else if (state.kind === "running") stop();
-        // countdown/result 中は無効
       }
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [state]);
 
-  // --- Render (Canvas loop) ---
   useEffect(() => {
     const canvas = canvasRef.current;
-    const ctx = canvas?.getContext("2d");
-    if (!canvas || !ctx) return;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    
 
-    function drawBg() {
-      if (!canvas || !ctx) return;
-      // 背景: 白
-      ctx.fillStyle = "#ffffff";
-      ctx.fillRect(0, 0, WIDTH, HEIGHT);
+    // デバイスピクセル比に合わせてキャンバスをフィット
+    function fitCanvas() {
+      if (!canvas) return;
+      if (!ctx) return;
 
-      // top info bar: 薄いグレー
-      ctx.fillStyle = "#f3f4f6"; // gray-100
-      ctx.fillRect(0, 0, WIDTH, 64);
-
-      // テキスト: 濃いグレー
-      ctx.fillStyle = "#111827"; // gray-900
-      ctx.font = "600 16px ui-sans-serif, system-ui";
-      ctx.fillText(`目標時間: ${TARGET_SEC}s`, 16, 24);
-      ctx.fillText(`${(visibleUntilMs / 1000).toFixed(0)}秒から隠れるよ`, 220, 24);
+      const dpr = window.devicePixelRatio || 1;
+      const rect = canvas.getBoundingClientRect();
+      const cssW = Math.max(1, Math.round(rect.width));
+      const cssH = BASE_HEIGHT; // 高さは固定（必要なら可変に）
+      const needResize =
+        canvas.width !== Math.round(cssW * dpr) || canvas.height !== Math.round(cssH * dpr);
+      if (needResize) {
+        canvas.width = Math.round(cssW * dpr);
+        canvas.height = Math.round(cssH * dpr);
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0); // 以降はCSSピクセルで描画
+      }
+      return { W: cssW, H: cssH };
     }
 
-    function drawIdle() {
-      if (!canvas || !ctx) return;
-      ctx.textAlign = "center";
+    function drawBg(W: number, H: number) {
+      // 背景: 白
+      if (!ctx) return;
+      ctx.fillStyle = "#ffffff";
+      ctx.fillRect(0, 0, W, H);
+
+      // 上部インフォバー（右端までしっかり塗る）
+      ctx.fillStyle = "#f3f4f6";
+      ctx.fillRect(0, 0, W, INFOBAR_HEIGHT);
+
+      // テキスト（中央寄せで2項目を1行に）
       ctx.fillStyle = "#111827";
-      ctx.font = "600 18px ui-sans-serif, system-ui";
-      ctx.fillText("Start を押すと 3 秒カウントダウン", WIDTH / 2, HEIGHT / 2 + 10);
+      ctx.font = "600 16px ui-sans-serif, system-ui";
+      ctx.textAlign = "center";
+      const centerText = `目標時間: ${TARGET_SEC}s　|　${(visibleUntilMs / 1000).toFixed(0)}秒から隠れるよ`;
+      ctx.fillText(centerText, W / 2, 24);
       ctx.textAlign = "start";
     }
 
-    function drawCountdown() {
-      if (!canvas || !ctx) return;
+    function drawIdle(W: number, H: number) {
+      if (!ctx) return;
+      ctx.textAlign = "center";
+      ctx.fillStyle = "#111827";
+      ctx.font = "600 18px ui-sans-serif, system-ui";
+      ctx.fillText("Start を押すと 3 秒カウントダウン", W / 2, H / 2 + 10);
+      ctx.textAlign = "start";
+    }
+
+    function drawCountdown(W: number, H: number) {
+      if (!ctx) return;
       const now = performance.now();
-      let leftMs = 0;
-      if (state.kind === "countdown") leftMs = Math.max(0, state.endAt - now);
+      const leftMs = state.kind === "countdown" ? Math.max(0, state.endAt - now) : 0;
       const leftSec = Math.ceil(leftMs / 1000); // 3,2,1
       ctx.textAlign = "center";
       ctx.fillStyle = "#111827";
       ctx.font = "800 72px ui-sans-serif, system-ui";
-      ctx.fillText(String(leftSec), WIDTH / 2, HEIGHT / 2 + 24);
+      ctx.fillText(String(leftSec), W / 2, H / 2 + 24);
       ctx.font = "600 16px ui-sans-serif, system-ui";
-      ctx.fillText("まもなく開始…", WIDTH / 2, HEIGHT - 28);
+      ctx.fillText("まもなく開始…", W / 2, H - 28);
       ctx.textAlign = "start";
     }
 
-    function drawTimer(elapsedMs: number) {
-      if (!canvas || !ctx) return;
+    function drawTimer(W: number, H: number, elapsedMs: number) {
       const show = elapsedMs <= visibleUntilMs;
+      if (!ctx) return;
       ctx.textAlign = "center";
       ctx.fillStyle = "#111827";
-
       if (show) {
-        if (!canvas || !ctx) return;
         ctx.font = "700 64px ui-sans-serif, system-ui";
-        ctx.fillText((elapsedMs / 1000).toFixed(3) + "s", WIDTH / 2, HEIGHT / 2 + 18);
+        ctx.fillText((elapsedMs / 1000).toFixed(3) + "s", W / 2, H / 2 + 18);
       } else {
         ctx.font = "700 54px ui-sans-serif, system-ui";
         ctx.globalAlpha = 0.5;
-        ctx.fillText("— — —", WIDTH / 2, HEIGHT / 2 + 14);
+        ctx.fillText("— — —", W / 2, H / 2 + 14);
         ctx.globalAlpha = 1;
         ctx.font = "500 16px ui-sans-serif, system-ui";
-        ctx.fillText("研ぎ澄ませ", WIDTH / 2, HEIGHT - 28);
+        ctx.fillText("研ぎ澄ませ", W / 2, H - 28);
       }
       ctx.textAlign = "start";
     }
 
-    // 最終結果: 1) 実測タイム（大） 2) 目標時間＋早い/遅い 3) 目標の下に誤差（±）
-    function drawResult(elapsedMs: number, absErrorMs: number, _rating: string) {
-      if (!canvas || !ctx) return;
-
+    function drawResult(W: number, H: number, elapsedMs: number, absErrorMs: number, _rating: string) {
+      if (!ctx) return;
+      
       const actual = (elapsedMs / 1000).toFixed(3) + "s";
       const signedDisplay = (elapsedMs - targetMs >= 0 ? +1 : -1) * absErrorMs;
       const diffStr = formatSignedSeconds(signedDisplay);
@@ -195,42 +186,47 @@ export default function TimingStopBlind() {
 
       ctx.textAlign = "center";
       ctx.fillStyle = "#111827";
-
-      // 1行目：実測タイム（大）
       ctx.font = "800 56px ui-sans-serif, system-ui";
-      ctx.fillText(actual, WIDTH / 2, HEIGHT / 2 - 8);
-
-      // 2行目：目標時間 + 早い/遅い
+      ctx.fillText(actual, W / 2, H / 2 - 8);
       ctx.font = "600 18px ui-sans-serif, system-ui";
-      ctx.fillText(`目標時間: ${TARGET_SEC}s  |  ${hint}`, WIDTH / 2, HEIGHT / 2 + 24);
-
-      // 3行目：誤差（±表記）
+      ctx.fillText(`目標時間: ${TARGET_SEC}s  |  ${hint}`, W / 2, H / 2 + 24);
       ctx.font = "700 22px ui-sans-serif, system-ui";
-      ctx.fillText(`誤差: ${diffStr}`, WIDTH / 2, HEIGHT / 2 + 50);
-
+      ctx.fillText(`誤差: ${diffStr}`, W / 2, H / 2 + 50);
       ctx.textAlign = "start";
     }
 
     function loop() {
-      drawBg();
+      const { W, H } = fitCanvas(); // 毎フレームでも軽いので簡便に
+      drawBg(W, H);
 
       if (state.kind === "idle") {
-        drawIdle();
+        drawIdle(W, H);
       } else if (state.kind === "countdown") {
-        drawCountdown();
+        drawCountdown(W, H);
       } else if (state.kind === "running") {
         const elapsedMs = performance.now() - state.startedAt;
-        drawTimer(elapsedMs);
+        drawTimer(W, H, elapsedMs);
       } else if (state.kind === "result") {
-        drawResult(state.elapsedMs, state.signedErrorMs, state.rating);
+        drawResult(W, H, state.elapsedMs, state.signedErrorMs, state.rating);
       }
 
       rafRef.current = requestAnimationFrame(loop);
     }
 
+    // リサイズ時も自動フィット
+    const onResize = () => {
+      const dpr = window.devicePixelRatio || 1;
+      const rect = canvas.getBoundingClientRect();
+      canvas.width = Math.round(rect.width * dpr);
+      canvas.height = Math.round(BASE_HEIGHT * dpr);
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    };
+    window.addEventListener("resize", onResize);
+
     rafRef.current = requestAnimationFrame(loop);
     return () => {
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
+      window.removeEventListener("resize", onResize);
     };
   }, [state, visibleUntilMs, targetMs]);
 
@@ -243,7 +239,11 @@ export default function TimingStopBlind() {
             {state.kind === "idle" && (
               <button
                 className="px-3 py-1.5 rounded-2xl bg-emerald-600 text-white font-semibold shadow hover:bg-emerald-500"
-                onClick={start}
+                onClick={() => {
+                  if (state.kind === "idle") {
+                    setState({ kind: "countdown", endAt: performance.now() + 3000 });
+                  }
+                }}
               >
                 Start
               </button>
@@ -256,20 +256,31 @@ export default function TimingStopBlind() {
             {state.kind === "running" && (
               <button
                 className="px-3 py-1.5 rounded-2xl bg-blue-600 text-white font-semibold shadow hover:bg-blue-500"
-                onClick={stop}
+                onClick={() => {
+                  if (state.kind === "running") {
+                    const now = performance.now();
+                    const elapsedMs = now - state.startedAt;
+                    const absErr = Math.abs(elapsedMs - targetMs);
+                    const rating = ratingFor(absErr);
+                    setState({ kind: "result", elapsedMs, targetMs, signedErrorMs: absErr, rating });
+                    if (absErr < bestErrorMs) {
+                      setBestErrorMs(absErr);
+                      try { localStorage.setItem("timing_best_error_ms", String(absErr)); } catch {}
+                    }
+                  }
+                }}
               >
                 Stop
               </button>
             )}
-            {/* result では何も出さない（再挑戦不可） */}
+            {/* result ではボタンなし（やり直し不可） */}
           </div>
         </header>
 
         <div className="rounded-2xl overflow-hidden ring-1 ring-slate-200 shadow">
-          <canvas ref={canvasRef} width={WIDTH} height={HEIGHT} className="block" />
+          {/* キャンバスは幅100%に広げ、JS側で高DPI対応＆右端まで塗りつぶし */}
+          <canvas ref={canvasRef} style={{ width: "100%", height: BASE_HEIGHT }} />
         </div>
-
-
       </div>
     </div>
   );
