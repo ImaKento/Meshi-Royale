@@ -25,10 +25,8 @@ export async function GET(request: NextRequest) {
     if (!room) {
       return NextResponse.json({ error: 'ルームが見つかりません' }, { status: 404 });
     }
-    console.log('room', room);
     return NextResponse.json({ room });
   } catch (error) {
-    console.error('ルーム検索エラー:', error);
-    return NextResponse.json({ error: 'ルームの検索に失敗しました' }, { status: 500 });
+    return NextResponse.json({ error: 'ルームの検索に失敗しました。' + error }, { status: 500 });
   }
 }
