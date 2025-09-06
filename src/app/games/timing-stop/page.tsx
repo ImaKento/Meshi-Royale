@@ -1,16 +1,16 @@
 "use client";
 import React, { useEffect, useRef, useState } from "react";
 
-// Timing Stop (Target-Time, Blind until ~30% with clean cutoff)
-// 仕様: 表示は「目標時間の約30%」まで。ただしゲーム性のため、切りのいい値(1.0秒刻み)に切り上げて打ち切り。
-// ここでは 0.5 秒刻みで、0.3×Target を切り捨て（例: 10s→3.0s, 15s→4.5s, 7s→2.0s）。
-// Space/Enter = Start/Stop, R = Reset。
+// Timing Stop (Target-Time, Blind until ~30% with 1s ceil cutoff, light theme)
+// 仕様: 表示は「目標時間の約30%」まで。ただし 1.0秒刻みで【切り上げ】て打ち切り。
+// 設定時間は 5〜60 秒の整数。Space/Enter = Start/Stop, R = Reset。
 
 // --- Types ---
 type GameState =
   | { kind: "idle" }
   | { kind: "running"; startedAt: number }
-  | { kind: "result"; elapsedMs: number; targetMs: number; errorMs: number; score: number; rating: string };
+  //signedErrorMsにスコアを保存
+  | { kind: "result"; elapsedMs: number; targetMs: number; signedErrorMs: number; rating: string };
 
 // --- Constants ---
 const WIDTH = 720;
@@ -22,12 +22,30 @@ const THRESHOLDS = {
   good: 150,
 };
 
-// 約30%を "切りの良い" 値にスナップする（0.5秒刻みで切り捨て）
+// 1秒刻みで整数に正規化（範囲 5〜60）
+function clampIntSeconds(v: number) {
+  return Math.min(60, Math.max(5, Math.round(Number.isFinite(v) ? v : 10)));
+}
+
+// 約30%を 1.0 s 刻みで「切り上げ」
 function visibleUntilMsFor(targetMs: number) {
   const raw = 0.3 * targetMs; // 30%
-  const step = 1000; // 1.0 s 刻み
+  const step = 1000; // 1.0 s
   const snapped = Math.ceil(raw / step) * step; // 切り上げ
   return Math.max(step, snapped); // 最低1.0s 可視
+}
+
+function ratingFor(absErrorMs: number) {
+  if (absErrorMs <= THRESHOLDS.perfect) return "Perfect";
+  if (absErrorMs <= THRESHOLDS.great) return "Great";
+  if (absErrorMs <= THRESHOLDS.good) return "Good";
+  return "Miss";
+}
+
+function formatSignedSeconds(ms: number) {
+  const s = ms / 1000;
+  const sign = s > 0 ? "+" : s < 0 ? "−" : "±"; // U+2212 マイナス
+  return `${sign}${Math.abs(s).toFixed(3)}s`;
 }
 
 export default function TimingStopBlind() {
@@ -36,22 +54,15 @@ export default function TimingStopBlind() {
   const lastRef = useRef<number | null>(null);
 
   const [state, setState] = useState<GameState>({ kind: "idle" });
-  const [targetSec, setTargetSec] = useState<number>(() => Number(localStorage.getItem("timing_target_sec") ?? 10.0));
-  const [bestErrorMs, setBestErrorMs] = useState<number>(() => Number(localStorage.getItem("timing_best_error_ms") ?? Infinity));
+  const [targetSec, setTargetSec] = useState<number>(() =>
+    clampIntSeconds(Number(localStorage.getItem("timing_target_sec") ?? 10))
+  );
+  const [bestErrorMs, setBestErrorMs] = useState<number>(() =>
+    Number(localStorage.getItem("timing_best_error_ms") ?? Infinity)
+  );
 
-  const targetMs = Math.max(1, Math.min(60, targetSec)) * 1000; // 1〜60s にクランプ
+  const targetMs = clampIntSeconds(targetSec) * 1000; // 整数秒→ms
   const visibleUntilMs = visibleUntilMsFor(targetMs);
-
-  function ratingFor(error: number) {
-    if (error <= THRESHOLDS.perfect) return "Perfect";
-    if (error <= THRESHOLDS.great) return "Great";
-    if (error <= THRESHOLDS.good) return "Good";
-    return "Miss";
-  }
-  function scoreFor(error: number) {
-    const s = Math.max(0, 100 - (error / 2000) * 100);
-    return Math.round(s);
-  }
 
   function start() {
     if (state.kind === "running") return;
@@ -61,13 +72,13 @@ export default function TimingStopBlind() {
     if (state.kind !== "running") return;
     const now = performance.now();
     const elapsedMs = now - state.startedAt;
-    const errorMs = Math.abs(elapsedMs - targetMs);
-    const score = scoreFor(errorMs);
-    const rating = ratingFor(errorMs);
-    setState({ kind: "result", elapsedMs, targetMs, errorMs, score, rating });
-    if (errorMs < bestErrorMs) {
-      setBestErrorMs(errorMs);
-      localStorage.setItem("timing_best_error_ms", String(errorMs));
+    const signedErrorMs = elapsedMs - targetMs; // +: 遅い / −: 早い
+    const rating = ratingFor(Math.abs(signedErrorMs));
+    setState({ kind: "result", elapsedMs, targetMs, signedErrorMs, rating });
+
+    if (Math.abs(signedErrorMs) < bestErrorMs) {
+      setBestErrorMs(Math.abs(signedErrorMs));
+      localStorage.setItem("timing_best_error_ms", String(Math.abs(signedErrorMs)));
     }
   }
   function reset() {
@@ -83,13 +94,21 @@ export default function TimingStopBlind() {
         else if (state.kind === "running") stop();
         else if (state.kind === "result") reset();
       }
-      if (e.key.toLowerCase() === "r") { e.preventDefault(); reset(); }
+      if (e.key.toLowerCase() === "r") {
+        e.preventDefault();
+        reset();
+      }
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [state]);
 
-  useEffect(() => { localStorage.setItem("timing_target_sec", String(targetSec)); }, [targetSec]);
+  // 永続化（整数秒で保存）
+  useEffect(() => {
+    const normalized = clampIntSeconds(targetSec);
+    if (normalized !== targetSec) setTargetSec(normalized);
+    localStorage.setItem("timing_target_sec", String(normalized));
+  }, [targetSec]);
 
   // --- Render ---
   useEffect(() => {
@@ -97,57 +116,65 @@ export default function TimingStopBlind() {
     if (!ctx) return;
 
     function drawBg() {
-      ctx.fillStyle = "#0b1020";
+      // 背景: 白
+      ctx.fillStyle = "#ffffff";
       ctx.fillRect(0, 0, WIDTH, HEIGHT);
 
-      // top info bar
-      ctx.fillStyle = "#111827"; // gray-900
+      // top info bar: 薄いグレー
+      ctx.fillStyle = "#f3f4f6"; // gray-100
       ctx.fillRect(0, 0, WIDTH, 64);
 
-      ctx.fillStyle = "#ffffff";
+      // テキスト: 濃いグレー
+      ctx.fillStyle = "#111827"; // gray-900
       ctx.font = "600 16px ui-sans-serif, system-ui";
-      ctx.fillText(`Target: ${(targetMs/1000).toFixed(1)}s`, 16, 24);
-      ctx.fillText(`Visible until: ${(visibleUntilMs/1000).toFixed(1)}s`, 220, 24);
-
-      if (Number.isFinite(bestErrorMs)) {
-        ctx.font = "500 14px ui-sans-serif, system-ui";
-        ctx.fillText(`Best Error: ${Math.round(bestErrorMs)} ms`, 16, 46);
-      }
+      ctx.fillText(`目標時間: ${(targetMs / 1000).toFixed(0)}s`, 16, 24);
+      ctx.fillText(`${(visibleUntilMs / 1000).toFixed(0)}秒から隠れるよ`, 220, 24);
     }
 
     function drawTimer(elapsedMs: number) {
       const show = elapsedMs <= visibleUntilMs;
       ctx.textAlign = "center";
-      ctx.fillStyle = "#ffffff";
+      ctx.fillStyle = "#111827"; // 濃いグレー
 
       if (show) {
         ctx.font = "700 64px ui-sans-serif, system-ui";
-        ctx.fillText((elapsedMs/1000).toFixed(3) + "s", WIDTH/2, HEIGHT/2 + 18);
-        ctx.font = "500 16px ui-sans-serif, system-ui";
-        ctx.fillText("Timer visible (~30% of target)", WIDTH/2, HEIGHT - 28);
+        ctx.fillText((elapsedMs / 1000).toFixed(3) + "s", WIDTH / 2, HEIGHT / 2 + 18);
       } else {
         ctx.font = "700 54px ui-sans-serif, system-ui";
         ctx.globalAlpha = 0.5;
-        ctx.fillText("— — —", WIDTH/2, HEIGHT/2 + 14);
+        ctx.fillText("— — —", WIDTH / 2, HEIGHT / 2 + 14);
         ctx.globalAlpha = 1;
         ctx.font = "500 16px ui-sans-serif, system-ui";
-        ctx.fillText("研ぎ澄ませ", WIDTH/2, HEIGHT - 28);
+        ctx.fillText("研ぎ澄ませ", WIDTH / 2, HEIGHT - 28);
       }
       ctx.textAlign = "start";
     }
 
-    function drawResult(elapsedMs: number, errorMs: number, score: number, rating: string) {
-      ctx.textAlign = "center";
-      ctx.fillStyle = "#ffffff";
-      ctx.font = "800 40px ui-sans-serif, system-ui";
-      ctx.fillText(rating, WIDTH/2, HEIGHT/2 - 12);
+    // ★ 最終結果の表示：ビタ押しタイムを大きく、その行に誤差（±）も併記
+// 置き換え: 目標時間の下に誤差を表示
+  function drawResult(elapsedMs: number, signedErrorMs: number, _rating: string) {
+    const actual = (elapsedMs / 1000).toFixed(3) + "s";
+    const diffStr = formatSignedSeconds(signedErrorMs); // 例: "+0.247s" / "−0.081s"
+    const hint = signedErrorMs > 0 ? "遅い" : signedErrorMs < 0 ? "早い" : "ピタ";
 
-      ctx.font = "600 18px ui-sans-serif, system-ui";
-      ctx.fillText(`Your time: ${(elapsedMs/1000).toFixed(3)}s`, WIDTH/2, HEIGHT/2 + 16);
-      ctx.fillText(`Target: ${(targetMs/1000).toFixed(3)}s`, WIDTH/2, HEIGHT/2 + 40);
-      ctx.fillText(`Error: ${errorMs.toFixed(0)} ms  |  Score: ${score}`, WIDTH/2, HEIGHT/2 + 64);
-      ctx.textAlign = "start";
-    }
+    ctx.textAlign = "center";
+    ctx.fillStyle = "#111827"; // ライトテーマ（ダークなら "#ffffff"）
+
+    // 1行目：実測タイム（大）
+    ctx.font = "800 56px ui-sans-serif, system-ui";
+    ctx.fillText(actual, WIDTH / 2, HEIGHT / 2 - 8);
+
+    // 2行目：目標時間 + 早い/遅い
+    ctx.font = "600 18px ui-sans-serif, system-ui";
+    ctx.fillText(`目標時間: ${(targetMs / 1000).toFixed(0)}s  |  ${hint}`, WIDTH / 2, HEIGHT / 2 + 24);
+
+    // 3行目：誤差（±表記）— 目標時間の下
+    ctx.font = "700 22px ui-sans-serif, system-ui";
+    ctx.fillText(`誤差: ${diffStr}`, WIDTH / 2, HEIGHT / 2 + 50);
+
+    ctx.textAlign = "start";
+  }
+
 
     function loop(ts: number) {
       if (lastRef.current == null) lastRef.current = ts;
@@ -159,13 +186,13 @@ export default function TimingStopBlind() {
         const elapsedMs = performance.now() - state.startedAt;
         drawTimer(elapsedMs);
       } else if (state.kind === "result") {
-        drawResult(state.elapsedMs, state.errorMs, state.score, state.rating);
+        drawResult(state.elapsedMs, state.signedErrorMs, state.rating);
       } else {
         // idle hint
-        ctx.fillStyle = "#ffffff";
+        ctx.fillStyle = "#111827";
         ctx.textAlign = "center";
         ctx.font = "600 18px ui-sans-serif, system-ui";
-        ctx.fillText("Press Start, watch until cutoff, then count in your head.", WIDTH/2, HEIGHT/2 + 10);
+        ctx.fillText("心の準備ができたら，押しなよ", WIDTH / 2, HEIGHT / 2 + 10);
         ctx.textAlign = "start";
       }
 
@@ -173,20 +200,22 @@ export default function TimingStopBlind() {
     }
 
     rafRef.current = requestAnimationFrame(loop);
-    return () => { if (rafRef.current) cancelAnimationFrame(rafRef.current); };
+    return () => {
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+    };
   }, [state, targetMs, bestErrorMs, visibleUntilMs]);
 
   const disabled = state.kind === "running";
 
   return (
-    <div className="min-h-[100dvh] flex items-center justify-center bg-slate-950 p-6">
+    <div className="min-h-[100dvh] flex items-center justify-center bg-white p-6">
       <div className="w-full max-w-3xl grid gap-4">
         <header className="flex items-center justify-between">
-          <h1 className="text-white text-2xl font-bold">ビタ押しチャレンジ</h1>
+          <h1 className="text-slate-900 text-2xl font-bold">ビタ押しチャレンジ</h1>
           <div className="flex gap-2">
             {state.kind !== "running" && (
               <button
-                className="px-3 py-1.5 rounded-2xl bg-emerald-400 text-slate-900 font-semibold shadow hover:bg-emerald-300"
+                className="px-3 py-1.5 rounded-2xl bg-emerald-600 text-white font-semibold shadow hover:bg-emerald-500"
                 onClick={start}
               >
                 Start
@@ -194,7 +223,7 @@ export default function TimingStopBlind() {
             )}
             {state.kind === "running" && (
               <button
-                className="px-3 py-1.5 rounded-2xl bg-blue-400 text-slate-900 font-semibold shadow hover:bg-blue-300"
+                className="px-3 py-1.5 rounded-2xl bg-blue-600 text-white font-semibold shadow hover:bg-blue-500"
                 onClick={stop}
               >
                 Stop
@@ -202,7 +231,7 @@ export default function TimingStopBlind() {
             )}
             {(state.kind === "result" || state.kind === "idle") && (
               <button
-                className="px-3 py-1.5 rounded-2xl bg-white/10 text-white font-medium shadow hover:bg-white/20"
+                className="px-3 py-1.5 rounded-2xl bg-slate-100 text-slate-900 font-medium shadow hover:bg-slate-200"
                 onClick={reset}
               >
                 Reset
@@ -212,17 +241,17 @@ export default function TimingStopBlind() {
         </header>
 
         <div className="grid gap-3 sm:grid-cols-[1fr_auto] items-end">
-          <label className="text-slate-200 text-sm">
-            設定時間 (5.0〜60.0 秒)
+          <label className="text-slate-700 text-sm">
+            設定時間 (5〜60 秒)
             <input
               type="number"
               step={1}
               min={5}
               max={60}
               value={targetSec}
-              onChange={(e) => setTargetSec(Number(e.target.value))}
+              onChange={(e) => setTargetSec(clampIntSeconds(Number(e.target.value)))}
               disabled={disabled}
-              className="mt-1 w-32 rounded-xl bg-white/10 text-white px-3 py-1.5 outline-none ring-1 ring-white/10 focus:ring-white/30"
+              className="mt-1 w-32 rounded-xl bg-white text-slate-900 px-3 py-1.5 outline-none ring-1 ring-slate-300 focus:ring-slate-400"
             />
           </label>
           <div className="flex gap-2">
@@ -231,7 +260,7 @@ export default function TimingStopBlind() {
                 key={t}
                 disabled={disabled}
                 onClick={() => setTargetSec(t)}
-                className="px-3 py-1.5 rounded-2xl bg-white/10 text-white font-medium hover:bg-white/20 disabled:opacity-50"
+                className="px-3 py-1.5 rounded-2xl bg-slate-100 text-slate-900 font-medium hover:bg-slate-200 disabled:opacity-50"
               >
                 {t}s
               </button>
@@ -239,15 +268,21 @@ export default function TimingStopBlind() {
           </div>
         </div>
 
-        <div className="rounded-2xl overflow-hidden ring-1 ring-white/10 shadow">
+        <div className="rounded-2xl overflow-hidden ring-1 ring-slate-200 shadow">
           <canvas ref={canvasRef} width={WIDTH} height={HEIGHT} className="block" />
         </div>
 
-        <aside className="text-slate-300 text-sm leading-relaxed">
-          <p className="mb-1">Start でタイマー開始。<span className="font-semibold">表示は 0.3×設定時間 を **1.0 秒刻みで切り上げ**た時点</span>までです。</p>
+        <aside className="text-slate-700 text-sm leading-relaxed">
+          <p className="mb-1">
+            Start でタイマー開始。<span className="font-semibold">表示は 0.3×設定時間 を 1.0 秒刻みで切り上げ</span>た時点までです。
+          </p>
           <ul className="list-disc ml-5 space-y-1">
-            <li>Space / Enter でも Start/Stop、<span className="font-semibold">R</span> でリセット。</li>
-            <li>Stop 時点の実測タイムと目標との差で評価とスコアを表示。</li>
+            <li>
+              Space / Enter でも Start/Stop、<span className="font-semibold">R</span> でリセット。
+            </li>
+            <li>
+              結果は <span className="font-semibold">ビタ押しタイム（大）</span> と <span className="font-semibold">誤差（±）</span> を同じ行に表示します。
+            </li>
             <li>自己ベスト（最小誤差）はローカルに保存。</li>
           </ul>
         </aside>
