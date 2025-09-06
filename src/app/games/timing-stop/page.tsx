@@ -1,7 +1,8 @@
 'use client';
 
-import React, { Suspense, useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
+import React, { Suspense, useEffect, useRef, useState } from 'react';
+
 import { supabase } from '../../../lib/supabase';
 
 // Timing Stop (Start → 3s countdown → Run → Result, one-shot, light theme)
@@ -19,7 +20,7 @@ type GameResultRow = {
   user?: { name?: string } | null;
   scores?: number; // ← API上のスコア。ここでは absErrorMs (小さいほど良い)
   created_at?: string; // あればタイブレークで使用
-  createdAt?: string;  // あればタイブレークで使用
+  createdAt?: string; // あればタイブレークで使用
 };
 
 const BASE_HEIGHT = 260;
@@ -90,6 +91,7 @@ function TimingStopBlindComponent() {
   const [gameResults, setGameResults] = useState<GameResultRow[]>([]);
   const [allDone, setAllDone] = useState(false);
   const postedRef = useRef(false); // 結果POSTの多重防止
+  const [destinatedStore, setDestinatedStore] = useState<string | null>(null);
 
   // ベスト誤差の復元（任意）
   useEffect(() => {
@@ -164,6 +166,9 @@ function TimingStopBlindComponent() {
             if (resp.ok && data?.gameResults) {
               const list: GameResultRow[] = data.gameResults;
               setGameResults(list);
+              const userResponse = await fetch(`/api/users/${list[0].userId}`);
+              const userData = await userResponse.json();
+              setDestinatedStore(userData.item.food_candidates);
               if (list.length >= totalPlayers && totalPlayers > 0) setAllDone(true); // ← state.kind ガードなし
             }
           } catch (e) {
@@ -417,17 +422,17 @@ function TimingStopBlindComponent() {
         {/* 結果/ランキング（ルーム連携時） */}
         {state.kind === 'result' && (
           <div className='mt-4 rounded-2xl border border-slate-200 bg-white p-6 shadow'>
-            <h2 className='text-slate-900 text-2xl font-bold mb-4'>結果</h2>
+            <h2 className='mb-4 text-2xl font-bold text-slate-900'>結果</h2>
             <div className='grid gap-2'>
               <div className='flex items-baseline gap-3'>
-                <span className='text-slate-500 text-sm'>あなたの計測</span>
-                <span className='text-slate-900 text-xl font-extrabold'>
+                <span className='text-sm text-slate-500'>あなたの計測</span>
+                <span className='text-xl font-extrabold text-slate-900'>
                   {(state.elapsedMs / 1000).toFixed(3)}s
                 </span>
               </div>
               <div className='flex items-baseline gap-3'>
-                <span className='text-slate-500 text-sm'>誤差</span>
-                <span className='text-slate-900 text-xl font-extrabold'>
+                <span className='text-sm text-slate-500'>誤差</span>
+                <span className='text-xl font-extrabold text-slate-900'>
                   {formatAbsSeconds(state.absErrorMs)}
                 </span>
               </div>
@@ -435,19 +440,24 @@ function TimingStopBlindComponent() {
 
             {/* ルーム未連携の注意 */}
             {!roomId || !totalPlayers ? (
-              <p className='mt-4 text-slate-600 text-sm'>
+              <p className='mt-4 text-sm text-slate-600'>
                 ルーム連携なしの単体プレイです。URL に <code>userId</code>, <code>roomCode</code>,{' '}
                 <code>joindUserCount</code> を付けると対戦待ち＆最終結果が有効になります。
               </p>
             ) : !allDone ? (
-              <p className='mt-4 text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-4 py-3 text-sm'>
+              <p className='mt-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700'>
                 他のプレイヤーの完了を待っています…
                 <br />
                 参加人数: {totalPlayers} / 受信済: {gameResults.length}
               </p>
             ) : (
               <div className='mt-6'>
-                <h3 className='text-slate-900 font-semibold mb-3'>🏁 最終結果（誤差が小さい順）</h3>
+                <div className='my-4 rounded-lg border border-gray-300 p-8'>
+                  <h2 className='flex justify-center text-4xl font-bold text-black'>
+                    {destinatedStore} に決定！！
+                  </h2>
+                </div>
+                <h3 className='mb-3 font-semibold text-slate-900'>🏁 最終結果（誤差が小さい順）</h3>
                 <div className='space-y-2'>
                   {(() => {
                     const { sorted, ranks } = buildLeaderboard(gameResults, 'asc');
@@ -456,7 +466,7 @@ function TimingStopBlindComponent() {
                     return (
                       <>
                         {typeof myRank === 'number' && (
-                          <div className='mb-3 text-slate-700 text-sm'>
+                          <div className='mb-3 text-sm text-slate-700'>
                             あなたの順位: <span className='font-bold'>{myRank}位</span>
                           </div>
                         )}
@@ -473,19 +483,19 @@ function TimingStopBlindComponent() {
                               }`}
                             >
                               <div className='flex items-center gap-3'>
-                                <span className='text-slate-500 text-sm w-8 text-right'>
+                                <span className='w-8 text-right text-sm text-slate-500'>
                                   {rank}位
                                 </span>
-                                <span className='text-slate-900 font-semibold'>
+                                <span className='font-semibold text-slate-900'>
                                   {r?.user?.name || 'ゲスト'}
                                   {isMe ? '（あなた）' : ''}
                                 </span>
                               </div>
                               <div className='text-right'>
-                                <div className='text-slate-900 font-bold'>
+                                <div className='font-bold text-slate-900'>
                                   {formatAbsSeconds(Number(r?.scores ?? 0))}
                                 </div>
-                                <div className='text-slate-500 text-xs'>誤差</div>
+                                <div className='text-xs text-slate-500'>誤差</div>
                               </div>
                             </div>
                           );
