@@ -227,7 +227,7 @@ export default function TimingStopBlind() {
 
   return (
     // 画面全体。上ヘッダー/下アクションの固定分だけ余白を確保
-    <div className='min-h-[100dvh] overflow-x-hidden bg-white [padding-top:calc(4rem+env(safe-area-inset-top))] pt-16 [padding-bottom:calc(6rem+env(safe-area-inset-bottom))] pb-24 sm:pb-28'>
+    <div className='min-h-[100dvh] overflow-x-hidden bg-white [padding-top:calc(4rem+env(safe-area-inset-top))] [padding-bottom:calc(6rem+env(safe-area-inset-bottom))] text-black sm:pb-28'>
       {/* 固定ヘッダー */}
       <header className='fixed top-0 right-0 left-0 z-20 border-b border-slate-200 bg-white/90 backdrop-blur'>
         <div className='mx-auto flex h-16 max-w-3xl items-center justify-center px-4 sm:px-6'>
