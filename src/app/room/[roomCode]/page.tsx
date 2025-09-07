@@ -3,7 +3,7 @@
 import { Users } from 'lucide-react';
 
 import { useRouter } from 'next/navigation';
-import { use, useEffect, useState, useCallback, useRef } from 'react';
+import { use, useCallback, useEffect, useRef, useState } from 'react';
 
 import UserCard from '@/components/userCard';
 
@@ -52,7 +52,8 @@ function RoomPage({ params }: { params: Promise<{ roomCode: string }> }) {
   const shallowEqualRoomUsers = (a: RoomUser[], b: RoomUser[]) => {
     if (a.length !== b.length) return false;
     for (let i = 0; i < a.length; i++) {
-      const A = a[i], B = b[i];
+      const A = a[i],
+        B = b[i];
       if (A.user.id !== B.user.id) return false;
       if (A.user.name !== B.user.name) return false;
       if (A.user.food_candidates !== B.user.food_candidates) return false;
@@ -63,18 +64,23 @@ function RoomPage({ params }: { params: Promise<{ roomCode: string }> }) {
   function useDebouncedCallback<T extends (...args: any[]) => void>(cb: T, delay = 600) {
     // 直近のコールバックを保持
     const cbRef = useRef(cb);
-    useEffect(() => { cbRef.current = cb; }, [cb]);
+    useEffect(() => {
+      cbRef.current = cb;
+    }, [cb]);
 
     // ユニークキーごとにタイマーを分離（userId:field 単位で独立ディボンス）
     const timersRef = useRef<Map<string, number>>(new Map());
 
-    const debounced = useCallback((key: string, ...args: Parameters<T>) => {
-      const timers = timersRef.current;
-      const prev = timers.get(key);
-      if (prev) window.clearTimeout(prev);
-      const id = window.setTimeout(() => cbRef.current(...args), delay);
-      timers.set(key, id);
-    }, [delay]);
+    const debounced = useCallback(
+      (key: string, ...args: Parameters<T>) => {
+        const timers = timersRef.current;
+        const prev = timers.get(key);
+        if (prev) window.clearTimeout(prev);
+        const id = window.setTimeout(() => cbRef.current(...args), delay);
+        timers.set(key, id);
+      },
+      [delay]
+    );
 
     // 明示的に即時実行したいとき（blur時など）
     const flush = useCallback((key: string, ...args: Parameters<T>) => {
@@ -91,7 +97,7 @@ function RoomPage({ params }: { params: Promise<{ roomCode: string }> }) {
     useEffect(() => {
       return () => {
         const timers = timersRef.current;
-        timers.forEach((id) => window.clearTimeout(id));
+        timers.forEach(id => window.clearTimeout(id));
         timers.clear();
       };
     }, []);
@@ -138,12 +144,12 @@ function RoomPage({ params }: { params: Promise<{ roomCode: string }> }) {
           const list: RoomUser[] = data.room?.roomUsers ?? [];
           const sorted = sortRoomUsers(list);
 
-          setRoomUsers((prev) => {
+          setRoomUsers(prev => {
             // 直前状態を user.id → RoomUser のマップ化
-            const prevById = new Map(prev.map((p) => [p.user.id, p]));
+            const prevById = new Map(prev.map(p => [p.user.id, p]));
 
             // 「編集中フィールドはローカル優先」でマージ
-            const merged = sorted.map((ru) => {
+            const merged = sorted.map(ru => {
               const prevRu = prevById.get(ru.user.id);
               if (!prevRu) return ru;
 
@@ -352,9 +358,9 @@ function RoomPage({ params }: { params: Promise<{ roomCode: string }> }) {
     // roomCodeから一意にゲームを決定
     const games = [
       '/games/avoidance-game',
-      '/games/button-mashing',
-      '/games/color-challenge',
-      '/games/timing-stop',
+      // '/games/button-mashing',
+      // '/games/color-challenge',
+      // '/games/timing-stop',
     ];
 
     // roomCodeをハッシュ化して一意なインデックスを生成
@@ -442,7 +448,7 @@ function RoomPage({ params }: { params: Promise<{ roomCode: string }> }) {
         </div>
         <Button
           onClick={handleGemaStart}
-          disabled={roomUsers.length < 2}
+          // disabled={roomUsers.length < 2}
           className='h-12 w-full justify-center rounded-2xl bg-gradient-to-r from-yellow-400 to-orange-500 font-semibold'
         >
           <div className='flex items-center justify-center gap-2'>
