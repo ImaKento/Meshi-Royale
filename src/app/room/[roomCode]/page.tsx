@@ -358,9 +358,9 @@ function RoomPage({ params }: { params: Promise<{ roomCode: string }> }) {
     // roomCodeから一意にゲームを決定
     const games = [
       '/games/avoidance-game',
-      // '/games/button-mashing',
-      // '/games/color-challenge',
-      // '/games/timing-stop',
+      '/games/button-mashing',
+      '/games/color-challenge',
+      '/games/timing-stop',
     ];
 
     // roomCodeをハッシュ化して一意なインデックスを生成
