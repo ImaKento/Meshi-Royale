@@ -3,7 +3,7 @@
 import { Users } from 'lucide-react';
 
 import { useRouter } from 'next/navigation';
-import { use, useEffect, useState } from 'react';
+import { use, useEffect, useState, useCallback, useRef } from 'react';
 
 import UserCard from '@/components/userCard';
 
@@ -38,6 +38,67 @@ function RoomPage({ params }: { params: Promise<{ roomCode: string }> }) {
 
   const [leaving, setLeaving] = useState(false);
 
+  const editingRef = useRef<Set<string>>(new Set());
+
+  const handleFieldFocus = (userId: string, field: 'name' | 'food_candidates') => {
+    editingRef.current.add(`${userId}:${field}`);
+  };
+
+  const handleFieldBlur = (userId: string, field: 'name' | 'food_candidates', value: string) => {
+    editingRef.current.delete(`${userId}:${field}`);
+    flushSave(`${userId}:${field}`, userId, field, value);
+  };
+
+  const shallowEqualRoomUsers = (a: RoomUser[], b: RoomUser[]) => {
+    if (a.length !== b.length) return false;
+    for (let i = 0; i < a.length; i++) {
+      const A = a[i], B = b[i];
+      if (A.user.id !== B.user.id) return false;
+      if (A.user.name !== B.user.name) return false;
+      if (A.user.food_candidates !== B.user.food_candidates) return false;
+    }
+    return true;
+  };
+
+  function useDebouncedCallback<T extends (...args: any[]) => void>(cb: T, delay = 600) {
+    // 直近のコールバックを保持
+    const cbRef = useRef(cb);
+    useEffect(() => { cbRef.current = cb; }, [cb]);
+
+    // ユニークキーごとにタイマーを分離（userId:field 単位で独立ディボンス）
+    const timersRef = useRef<Map<string, number>>(new Map());
+
+    const debounced = useCallback((key: string, ...args: Parameters<T>) => {
+      const timers = timersRef.current;
+      const prev = timers.get(key);
+      if (prev) window.clearTimeout(prev);
+      const id = window.setTimeout(() => cbRef.current(...args), delay);
+      timers.set(key, id);
+    }, [delay]);
+
+    // 明示的に即時実行したいとき（blur時など）
+    const flush = useCallback((key: string, ...args: Parameters<T>) => {
+      const timers = timersRef.current;
+      const prev = timers.get(key);
+      if (prev) {
+        window.clearTimeout(prev);
+        timers.delete(key);
+      }
+      cbRef.current(...args);
+    }, []);
+
+    // アンマウントで全タイマー掃除
+    useEffect(() => {
+      return () => {
+        const timers = timersRef.current;
+        timers.forEach((id) => window.clearTimeout(id));
+        timers.clear();
+      };
+    }, []);
+
+    return { debounced, flush };
+  }
+
   // 空文字は空文字のまま、それ以外はtrimして返す
   const normalizeString = (v: string | null | undefined) => {
     if (typeof v !== 'string') return '';
@@ -64,23 +125,77 @@ function RoomPage({ params }: { params: Promise<{ roomCode: string }> }) {
     });
 
   useEffect(() => {
+    let interval: number | null = null;
+
     const fetchRoomData = async (isInitial = false) => {
       try {
         if (isInitial) setIsInitialLoading(true);
+
         const res = await fetch(`/api/rooms?roomCode=${roomCode}`);
         const data = await res.json();
+
         if (res.ok) {
           const list: RoomUser[] = data.room?.roomUsers ?? [];
-          setRoomUsers(sortRoomUsers(list)); // ★ 取得直後にソート
+          const sorted = sortRoomUsers(list);
+
+          setRoomUsers((prev) => {
+            // 直前状態を user.id → RoomUser のマップ化
+            const prevById = new Map(prev.map((p) => [p.user.id, p]));
+
+            // 「編集中フィールドはローカル優先」でマージ
+            const merged = sorted.map((ru) => {
+              const prevRu = prevById.get(ru.user.id);
+              if (!prevRu) return ru;
+
+              const id = ru.user.id;
+              const keepName = editingRef.current.has(`${id}:name`);
+              const keepFood = editingRef.current.has(`${id}:food_candidates`);
+
+              return {
+                ...ru,
+                user: {
+                  ...ru.user,
+                  name: keepName ? prevRu.user.name : ru.user.name,
+                  food_candidates: keepFood ? prevRu.user.food_candidates : ru.user.food_candidates,
+                },
+              };
+            });
+
+            return shallowEqualRoomUsers(prev, merged) ? prev : merged;
+          });
         }
       } finally {
         if (isInitial) setIsInitialLoading(false);
       }
     };
 
-    fetchRoomData(true);
-    const interval = setInterval(() => fetchRoomData(false), 5000);
-    return () => clearInterval(interval);
+    const start = () => {
+      if (interval == null) {
+        interval = window.setInterval(() => fetchRoomData(false), 5000);
+      }
+    };
+    const stop = () => {
+      if (interval != null) {
+        clearInterval(interval);
+        interval = null;
+      }
+    };
+
+    // 初回取得 & 可視なら開始
+    fetchRoomData(true).then(() => {
+      if (document.visibilityState === 'visible') start();
+    });
+
+    const onVis = () => {
+      if (document.visibilityState === 'visible') start();
+      else stop();
+    };
+    document.addEventListener('visibilitychange', onVis);
+
+    return () => {
+      stop();
+      document.removeEventListener('visibilitychange', onVis);
+    };
   }, [roomCode]);
 
   // render 時も安全側で並べ替え（取得時ソートしているなら省略可）
@@ -106,24 +221,27 @@ function RoomPage({ params }: { params: Promise<{ roomCode: string }> }) {
     fetchMe();
   }, [selfUserId]);
 
+  const { debounced: debouncedSave, flush: flushSave } = useDebouncedCallback(
+    (userId: string, field: 'name' | 'food_candidates', value: string) => {
+      saveProfile(userId, field, value);
+    },
+    600 // 待ち時間(ms)
+  );
+
   // ユーザー情報更新（ローカル状態 + API）
   const onUpdateUser = (userId: string, field: 'name' | 'food_candidates', value: string) => {
-    // ローカル状態を即座に更新
+    // ローカル状態は即時更新
     if (userId === selfUserId) {
-      if (field === 'name') {
-        setDisplayName(value);
-      } else if (field === 'food_candidates') {
-        setFoodCandidates(value);
-      }
+      if (field === 'name') setDisplayName(value);
+      else setFoodCandidates(value);
     }
 
-    // ルームユーザーリストも更新
     setRoomUsers(prev =>
       prev.map(ru => (ru.userId === userId ? { ...ru, user: { ...ru.user, [field]: value } } : ru))
     );
 
-    // APIを非同期で呼び出し
-    saveProfile(userId, field, value);
+    // ★ デボンスして保存（キーは userId:field）
+    debouncedSave(`${userId}:${field}`, userId, field, value);
   };
 
   // 保存（PATCH /api/users/:id）
@@ -297,6 +415,8 @@ function RoomPage({ params }: { params: Promise<{ roomCode: string }> }) {
                   onUpdateUser={onUpdateUser}
                   readOnly={readOnly}
                   roomCode={roomCode}
+                  onFieldFocus={handleFieldFocus}
+                  onFieldBlur={handleFieldBlur}
                 />
               );
             })}
