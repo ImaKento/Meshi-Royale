@@ -1,7 +1,8 @@
 'use client';
 
 import { Label } from '@radix-ui/react-label';
-import { Gamepad2, LogIn, Plus } from 'lucide-react';
+import { LogIn, Plus } from 'lucide-react';
+import Image from 'next/image';
 
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
@@ -135,13 +136,17 @@ export default function Home() {
     <div className='flex min-h-screen items-center justify-center bg-gradient-to-br from-pink-400 via-purple-500 to-indigo-600 p-4'>
       <div className='w-full max-w-md space-y-8'>
         <div className='space-y-6 text-center'>
-          <div className='flex justify-center'>
-            <div className='flex h-20 w-20 items-center justify-center rounded-3xl border border-white/30 bg-gradient-to-br from-orange-400 to-pink-500 shadow-2xl backdrop-blur-sm'>
-              <Gamepad2 className='h-10 w-10 text-white' />
-            </div>
-          </div>
           <div className='rounded-3xl border border-white/30 bg-white/95 p-6 shadow-xl backdrop-blur-sm'>
-            <h1 className='mb-2 text-4xl font-black text-gray-800'>🍽️ グルメバトル</h1>
+            <h1 className='mb-2 text-4xl font-black text-gray-800 flex items-center justify-center'>
+              <Image 
+                src="/images/MeshiRoyale.png" 
+                alt="MeshiRoyale" 
+                width={48} 
+                height={48}
+                className="object-contain mr-2"
+              />
+              飯ロワイヤル
+            </h1>
             <p className='text-lg font-medium text-gray-600'>みんなでお店を決めよう！</p>
           </div>
         </div>
