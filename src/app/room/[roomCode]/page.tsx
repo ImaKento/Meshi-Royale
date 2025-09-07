@@ -51,37 +51,40 @@ function RoomPage({ params }: { params: Promise<{ roomCode: string }> }) {
     if (saved) setSelfUserId(saved);
   }, []);
 
+  // 取得時にソートしてセット（どちらでもOK：取得時 or render時）
+  const sortRoomUsers = (list: RoomUser[]) =>
+    [...list].sort((a, b) => {
+      const ta =
+        (a.createdAt ?? a.user?.createdAt ?? 0) &&
+        new Date(a.createdAt ?? a.user?.createdAt ?? 0).getTime();
+      const tb =
+        (b.createdAt ?? b.user?.createdAt ?? 0) &&
+        new Date(b.createdAt ?? b.user?.createdAt ?? 0).getTime();
+      return (ta || 0) - (tb || 0);
+    });
+
   useEffect(() => {
     const fetchRoomData = async (isInitial = false) => {
       try {
-        if (isInitial) {
-          setIsInitialLoading(true);
+        if (isInitial) setIsInitialLoading(true);
+        const res = await fetch(`/api/rooms?roomCode=${roomCode}`);
+        const data = await res.json();
+        if (res.ok) {
+          const list: RoomUser[] = data.room?.roomUsers ?? [];
+          setRoomUsers(sortRoomUsers(list)); // ★ 取得直後にソート
         }
-        const response = await fetch(`/api/rooms?roomCode=${roomCode}`);
-        const data = await response.json();
-
-        if (response.ok) {
-          setRoomUsers(data.room.roomUsers || []);
-        } else {
-        }
-      } catch (error) {
-        alert('ルームの取得に失敗しました。' + error);
       } finally {
-        if (isInitial) {
-          setIsInitialLoading(false);
-        }
+        if (isInitial) setIsInitialLoading(false);
       }
     };
 
-    // 初回データ取得
     fetchRoomData(true);
-
-    // 5秒ごとにデータを更新（バックグラウンドで）
     const interval = setInterval(() => fetchRoomData(false), 5000);
-
-    // クリーンアップ
     return () => clearInterval(interval);
   }, [roomCode]);
+
+  // render 時も安全側で並べ替え（取得時ソートしているなら省略可）
+  const sortedRoomUsers = sortRoomUsers(roomUsers);
 
   // 自分のユーザー情報を読み込み（GET /api/users/:id）
   useEffect(() => {
@@ -149,12 +152,46 @@ function RoomPage({ params }: { params: Promise<{ roomCode: string }> }) {
   // 選択画面から戻った際の受け取り
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    const picked = localStorage.getItem('pendingFoodCandidate');
-    if (picked) {
-      setFoodCandidates(picked);
-      localStorage.removeItem('pendingFoodCandidate');
-    }
-  }, []);
+
+    const readPicked = () => {
+      try {
+        const raw = localStorage.getItem('pendingFoodCandidate');
+        if (!raw) return;
+
+        const picked = raw.trim();
+        if (!picked) {
+          // 空文字は破棄
+          localStorage.removeItem('pendingFoodCandidate');
+          return;
+        }
+
+        // ★ selfUserId がまだ無いなら「消さずに」待つ（次のフォーカス/可視化や selfUserId 確定後の再実行で拾う）
+        if (!selfUserId) return;
+
+        // ここで初めて反映＆削除
+        onUpdateUser(selfUserId, 'food_candidates', picked); // 一覧＆DBを即反映
+        localStorage.removeItem('pendingFoodCandidate');
+      } catch {}
+    };
+
+    // 初回（戻り直後）
+    readPicked();
+
+    // タブにフォーカスが戻った時
+    const onFocus = () => readPicked();
+    window.addEventListener('focus', onFocus);
+
+    // ページが再び可視になった時（App Routerの再マウント/キャッシュ対策）
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible') readPicked();
+    };
+    document.addEventListener('visibilitychange', onVisibility);
+
+    return () => {
+      window.removeEventListener('focus', onFocus);
+      document.removeEventListener('visibilitychange', onVisibility);
+    };
+  }, [selfUserId]);
 
   // 初回ローディング中
   if (isInitialLoading) {
@@ -250,15 +287,15 @@ function RoomPage({ params }: { params: Promise<{ roomCode: string }> }) {
           </div>
 
           <div className='space-y-3'>
-            {roomUsers.map((user, index) => {
-              // const readOnly = user.userId !== selfUserId;
+            {sortedRoomUsers.map((ru, idx) => {
+              const readOnly = ru.userId !== selfUserId;
               return (
                 <UserCard
-                  key={index}
-                  user={user.user}
-                  index={index}
+                  key={ru.user.id}
+                  user={ru.user}
+                  index={idx}
                   onUpdateUser={onUpdateUser}
-                  readOnly={false}
+                  readOnly={readOnly}
                   roomCode={roomCode}
                 />
               );

@@ -2,8 +2,8 @@
 
 import { useSearchParams } from 'next/navigation';
 import React, { Suspense, useEffect, useRef, useState } from 'react';
-import Header from '@/components/ui/header';
 
+import Header from '@/components/ui/header';
 
 import { supabase } from '../../../lib/supabase';
 
@@ -213,7 +213,7 @@ function ClickGameContent() {
   return (
     <div className='min-h-screen bg-white'>
       <Header />
-      
+
       <main className='p-4 text-black'>
         <div className='mx-auto max-w-2xl'>
           {/* ヘッダー */}
@@ -303,41 +303,41 @@ function ClickGameContent() {
                 </div>
               </div>
             </div>
-        )}
+          )}
 
-        {/* 全体結果画面 */}
-        {gameState === 'results' && (
-          <div className='text-center'>
-            <div className='my-4 rounded-lg border border-gray-300 p-8'>
-              <h2 className='flex justify-center text-4xl font-bold text-black'>
-                {destinatedStore} に決定！！
-              </h2>
-            </div>
-            <div className='rounded-lg border border-gray-300 p-8'>
-              <h2 className='mb-6 text-4xl font-bold text-black'>🏆 最終結果</h2>
+          {/* 全体結果画面 */}
+          {gameState === 'results' && (
+            <div className='text-center'>
+              <div className='my-4 rounded-lg border border-gray-300 p-8'>
+                <h2 className='flex justify-center text-4xl font-bold text-black'>
+                  {destinatedStore} に決定！！
+                </h2>
+              </div>
+              <div className='rounded-lg border border-gray-300 p-8'>
+                <h2 className='mb-6 text-4xl font-bold text-black'>🏆 最終結果</h2>
 
-              <div className='space-y-4'>
-                {gameResults.map((result, index) => (
-                  <div
-                    key={result.id}
-                    className={`rounded-lg border p-4 ${
-                      result.userId === userId
-                        ? 'border-yellow-300 bg-yellow-100'
-                        : 'border-gray-200 bg-gray-50'
-                    }`}
-                  >
-                    <div className='flex items-center justify-between'>
-                      <div className='text-left'>
-                        <div className='text-xl font-bold text-black'>
-                          {index + 1}位: {result.user.name || 'ゲスト'}
-                        </div>
-                        <div className='text-right'>
-                          <div className='text-2xl font-bold text-black'>{result.scores}</div>
-                          <div className='text-sm text-gray-600'>クリック</div>
+                <div className='space-y-4'>
+                  {gameResults.map((result, index) => (
+                    <div
+                      key={result.id}
+                      className={`rounded-lg border p-4 ${
+                        result.userId === userId
+                          ? 'border-yellow-300 bg-yellow-100'
+                          : 'border-gray-200 bg-gray-50'
+                      }`}
+                    >
+                      <div className='flex items-center justify-between'>
+                        <div className='text-left'>
+                          <div className='text-xl font-bold text-black'>
+                            {index + 1}位: {result.user.name || 'ゲスト'}
+                          </div>
+                          <div className='text-right'>
+                            <div className='text-2xl font-bold text-black'>{result.scores}</div>
+                            <div className='text-sm text-gray-600'>クリック</div>
+                          </div>
                         </div>
                       </div>
                     </div>
-                  </div>
                   ))}
                 </div>
 
@@ -365,4 +365,3 @@ export default function ClickGame() {
     </Suspense>
   );
 }
-
