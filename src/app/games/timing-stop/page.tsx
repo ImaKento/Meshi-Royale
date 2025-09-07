@@ -1,6 +1,7 @@
 'use client';
 
 import React, { Suspense, useEffect, useRef, useState } from 'react';
+import Header from '@/components/ui/header';
 import { useSearchParams, useRouter } from 'next/navigation';
 
 import { supabase } from '../../../lib/supabase';
@@ -403,115 +404,122 @@ function TimingStopBlindComponent() {
 
   // ===== UI =====
   return (
-    // 画面全体。上ヘッダー/下アクションの固定分だけ余白を確保
-    <div className='min-h-[100dvh] overflow-x-hidden bg-white [padding-top:calc(4rem+env(safe-area-inset-top))] [padding-bottom:calc(6rem+env(safe-area-inset-bottom))] text-black sm:pb-28'>
-      {/* 固定ヘッダー */}
-      <header className='fixed top-0 right-0 left-0 z-20 border-b border-slate-200 bg-white/90 backdrop-blur'>
-        <div className='mx-auto flex h-16 max-w-3xl items-center justify-center px-4 sm:px-6'>
-          <h1 className='truncate text-xl font-bold tracking-tight text-slate-900 sm:text-2xl'>
-            ビタ押しチャレンジ
-          </h1>
-        </div>
-      </header>
+    <div className='min-h-screen bg-white'>
+      {/* 共通ヘッダー */}
+      <Header />
 
-      {/* コンテンツ */}
-      <main className='mx-auto max-w-3xl px-4 py-4 sm:px-6'>
-        <div className='overflow-hidden rounded-2xl shadow ring-1 ring-slate-200'>
-          <canvas ref={canvasRef} style={{ width: '100%', height: BASE_HEIGHT }} />
+      {/* コンテンツエリア（ヘッダー分の余白を確保） */}
+      <main className='pt-4 pb-32'>
+        {/* ゲームタイトル */}
+        <div className='mx-auto max-w-3xl px-4 sm:px-6'>
+          <div className='text-center mb-4'>
+            <h1 className='text-xl font-bold tracking-tight text-slate-900 sm:text-2xl'>
+              ビタ押しチャレンジ
+            </h1>
+          </div>
+        </div>
+
+        {/* Canvas */}
+        <div className='mx-auto max-w-3xl px-4 sm:px-6'>
+          <div className='overflow-hidden rounded-2xl shadow ring-1 ring-slate-200'>
+            <canvas ref={canvasRef} style={{ width: '100%', height: BASE_HEIGHT }} />
+          </div>
         </div>
 
         {/* 結果/ランキング（ルーム連携時） */}
         {state.kind === 'result' && (
-          <div className='mt-4 rounded-2xl border border-slate-200 bg-white p-6 shadow'>
-            <h2 className='mb-4 text-2xl font-bold text-slate-900'>結果</h2>
-            <div className='grid gap-2'>
-              <div className='flex items-baseline gap-3'>
-                <span className='text-sm text-slate-500'>あなたの計測</span>
-                <span className='text-xl font-extrabold text-slate-900'>
-                  {(state.elapsedMs / 1000).toFixed(3)}s
-                </span>
+          <div className='mx-auto max-w-3xl px-4 sm:px-6'>
+            <div className='mt-4 rounded-2xl border border-slate-200 bg-white p-6 shadow'>
+              <h2 className='mb-4 text-2xl font-bold text-slate-900'>結果</h2>
+              <div className='grid gap-2'>
+                <div className='flex items-baseline gap-3'>
+                  <span className='text-sm text-slate-500'>あなたの計測</span>
+                  <span className='text-xl font-extrabold text-slate-900'>
+                    {(state.elapsedMs / 1000).toFixed(3)}s
+                  </span>
+                </div>
+                <div className='flex items-baseline gap-3'>
+                  <span className='text-sm text-slate-500'>誤差</span>
+                  <span className='text-xl font-extrabold text-slate-900'>
+                    {formatAbsSeconds(state.absErrorMs)}
+                  </span>
+                </div>
               </div>
-              <div className='flex items-baseline gap-3'>
-                <span className='text-sm text-slate-500'>誤差</span>
-                <span className='text-xl font-extrabold text-slate-900'>
-                  {formatAbsSeconds(state.absErrorMs)}
-                </span>
-              </div>
-            </div>
 
-            {/* ルーム未連携の注意 */}
-            {!roomId || !totalPlayers ? (
-              <p className='mt-4 text-sm text-slate-600'>
-                ルーム連携なしの単体プレイです。URL に <code>userId</code>, <code>roomCode</code>,{' '}
-                <code>joindUserCount</code> を付けると対戦待ち＆最終結果が有効になります。
-              </p>
-            ) : !allDone ? (
-              <p className='mt-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700'>
-                他のプレイヤーの完了を待っています…
-                <br />
-                参加人数: {totalPlayers} / 受信済: {gameResults.length}
-              </p>
-            ) : (
-              <div className='mt-6'>
-                <div className='my-4 rounded-lg border border-gray-300 p-8'>
-                  <h2 className='flex justify-center text-4xl font-bold text-black'>
-                    {destinatedStore} に決定！！
-                  </h2>
-                </div>
-                <h3 className='mb-3 font-semibold text-slate-900'>🏁 最終結果（誤差が小さい順）</h3>
-                <div className='space-y-2'>
-                  {(() => {
-                    const { sorted, ranks } = buildLeaderboard(gameResults, 'asc');
-                    const myIdx = sorted.findIndex(r => r.userId === userId);
-                    const myRank = myIdx >= 0 ? ranks[myIdx] : undefined;
-                    return (
-                      <>
-                        {typeof myRank === 'number' && (
-                          <div className='mb-3 text-sm text-slate-700'>
-                            あなたの順位: <span className='font-bold'>{myRank}位</span>
-                          </div>
-                        )}
-                        {sorted.map((r: GameResultRow, idx: number) => {
-                          const isMe = r.userId === userId;
-                          const rank = ranks[idx];
-                          return (
-                            <div
-                              key={r.id ?? `${r.userId}-${idx}`}
-                              className={`flex items-center justify-between rounded-lg border p-3 ${
-                                isMe
-                                  ? 'border-emerald-300 bg-emerald-50'
-                                  : 'border-slate-200 bg-slate-50'
-                              }`}
-                            >
-                              <div className='flex items-center gap-3'>
-                                <span className='w-8 text-right text-sm text-slate-500'>
-                                  {rank}位
-                                </span>
-                                <span className='font-semibold text-slate-900'>
-                                  {r?.user?.name || 'ゲスト'}
-                                  {isMe ? '（あなた）' : ''}
-                                </span>
-                              </div>
-                              <div className='text-right'>
-                                <div className='font-bold text-slate-900'>
-                                  {formatAbsSeconds(Number(r?.scores ?? 0))}
-                                </div>
-                                <div className='text-xs text-slate-500'>誤差</div>
-                              </div>
+              {/* ルーム未連携の注意 */}
+              {!roomId || !totalPlayers ? (
+                <p className='mt-4 text-sm text-slate-600'>
+                  ルーム連携なしの単体プレイです。URL に <code>userId</code>, <code>roomCode</code>,{' '}
+                  <code>joindUserCount</code> を付けると対戦待ち＆最終結果が有効になります。
+                </p>
+              ) : !allDone ? (
+                <p className='mt-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700'>
+                  他のプレイヤーの完了を待っています…
+                  <br />
+                  参加人数: {totalPlayers} / 受信済: {gameResults.length}
+                </p>
+              ) : (
+                <div className='mt-6'>
+                  <div className='my-4 rounded-lg border border-gray-300 p-8'>
+                    <h2 className='flex justify-center text-4xl font-bold text-black'>
+                      {destinatedStore} に決定！！
+                    </h2>
+                  </div>
+                  <h3 className='mb-3 font-semibold text-slate-900'>🏁 最終結果（誤差が小さい順）</h3>
+                  <div className='space-y-2'>
+                    {(() => {
+                      const { sorted, ranks } = buildLeaderboard(gameResults, 'asc');
+                      const myIdx = sorted.findIndex(r => r.userId === userId);
+                      const myRank = myIdx >= 0 ? ranks[myIdx] : undefined;
+                      return (
+                        <>
+                          {typeof myRank === 'number' && (
+                            <div className='mb-3 text-sm text-slate-700'>
+                              あなたの順位: <span className='font-bold'>{myRank}位</span>
                             </div>
-                          );
-                        })}
-                      </>
-                    );
-                  })()}
+                          )}
+                          {sorted.map((r: GameResultRow, idx: number) => {
+                            const isMe = r.userId === userId;
+                            const rank = ranks[idx];
+                            return (
+                              <div
+                                key={r.id ?? `${r.userId}-${idx}`}
+                                className={`flex items-center justify-between rounded-lg border p-3 ${
+                                  isMe
+                                    ? 'border-emerald-300 bg-emerald-50'
+                                    : 'border-slate-200 bg-slate-50'
+                                }`}
+                              >
+                                <div className='flex items-center gap-3'>
+                                  <span className='w-8 text-right text-sm text-slate-500'>
+                                    {rank}位
+                                  </span>
+                                  <span className='font-semibold text-slate-900'>
+                                    {r?.user?.name || 'ゲスト'}
+                                    {isMe ? '（あなた）' : ''}
+                                  </span>
+                                </div>
+                                <div className='text-right'>
+                                  <div className='font-bold text-slate-900'>
+                                    {formatAbsSeconds(Number(r?.scores ?? 0))}
+                                  </div>
+                                  <div className='text-xs text-slate-500'>誤差</div>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </>
+                      );
+                    })()}
+                  </div>
                 </div>
-              </div>
-            )}
+              )}
+            </div>
           </div>
         )}
       </main>
 
-      {/* 画面中央下に固定：丸ボタン単体（背後の長方形カードは削除） */}
+      {/* 画面中央下に固定：丸ボタン */}
       {state.kind !== 'result' && (
         <div className='fixed bottom-0 left-1/2 z-20 w-full max-w-sm -translate-x-1/2 px-4 pb-[env(safe-area-inset-bottom)] sm:px-0'>
           <div className='mb-4 flex items-center justify-center sm:mb-6'>
