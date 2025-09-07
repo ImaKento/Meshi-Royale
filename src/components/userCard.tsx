@@ -23,6 +23,9 @@ interface UserCardProps {
   onUpdateUser: (userId: string, field: 'name' | 'food_candidates', value: string) => void;
   readOnly?: boolean;
   roomCode: string;
+
+  onFieldFocus: (userId: string, field: 'name' | 'food_candidates') => void;
+  onFieldBlur: (userId: string, field: 'name' | 'food_candidates', value: string) => void;
 }
 
 export default function UserCard({
@@ -31,14 +34,10 @@ export default function UserCard({
   onUpdateUser,
   readOnly = false,
   roomCode,
+  onFieldFocus,
+  onFieldBlur,
 }: UserCardProps) {
   const router = useRouter();
-  const avatarColors = [
-    'from-purple-400 to-pink-400',
-    'from-blue-400 to-cyan-400',
-    'from-green-400 to-emerald-400',
-    'from-orange-400 to-red-400',
-  ];
 
   const [selfUserId, setSelfUserId] = useState<string | null>(null);
   useEffect(() => {
@@ -50,10 +49,6 @@ export default function UserCard({
   }, []);
 
   const isMe = user.id === selfUserId;
-
-  const updateUser = (field: 'name' | 'food_candidates', value: string) => {
-    onUpdateUser(user.id, field, value);
-  };
 
   const renderColorfulCard = () => {
     const cardColors = [
@@ -92,7 +87,9 @@ export default function UserCard({
                   <Input
                     placeholder="名前を入力"
                     value={user.name ?? "ゲスト"}
-                    onChange={(e) => updateUser("name", e.target.value)}
+                    onChange={readOnly ? undefined : (e) => onUpdateUser(user.id, 'name', e.target.value)}
+                    onFocus={readOnly ? undefined : () => onFieldFocus(user.id, 'name')}
+                    onBlur={readOnly ? undefined : (e) => onFieldBlur(user.id, 'name', e.currentTarget.value)}
                     readOnly={readOnly}
                     className={[
                       "h-11 rounded-2xl border-0 font-medium shadow-sm",
@@ -110,11 +107,13 @@ export default function UserCard({
                   <Input
                     placeholder="お店を入力"
                     value={user.food_candidates ?? ""}
-                    onChange={(e) => updateUser("food_candidates", e.target.value)}
-                    readOnly={readOnly}                 // ← ここも disabled → readOnly
+                    onChange={readOnly ? undefined : (e) => onUpdateUser(user.id, 'food_candidates', e.target.value)}
+                    onFocus={readOnly ? undefined : () => onFieldFocus(user.id, 'food_candidates')}
+                    onBlur={readOnly ? undefined : (e) => onFieldBlur(user.id, 'food_candidates', e.currentTarget.value)}
+                    readOnly={readOnly} 
                     className={[
                       "h-11 rounded-2xl border-0 font-medium shadow-sm pr-12",
-                      "bg-white/90 text-black placeholder-gray-500", // ← 常に黒文字
+                      "bg-white/90 text-black placeholder-gray-500",
                       readOnly ? "ring-1 ring-gray-300 cursor-default select-text" : ""
                     ].join(" ")}
                   />
