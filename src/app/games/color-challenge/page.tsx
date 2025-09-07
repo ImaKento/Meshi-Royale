@@ -1,7 +1,8 @@
 'use client';
 
-import { useSearchParams, useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import React, { Suspense, useEffect, useRef, useState } from 'react';
+
 import Header from '@/components/ui/header';
 
 import { supabase } from '../../../lib/supabase';
@@ -167,7 +168,7 @@ function ColorRushGameComponent() {
       )
       .subscribe();
 
-  return () => {
+    return () => {
       supabase.removeChannel(channel);
     };
   }, [roomId, gameType, totalPlayers]);
@@ -255,7 +256,6 @@ function ColorRushGameComponent() {
   return (
     <div className='min-h-screen bg-white'>
       <Header />
-      
       <main className='flex flex-col' style={{ height: 'calc(100vh - 80px)' }}>
         {/* ゲーム開始画面 */}
         {gameState === 'ready' && (
@@ -283,14 +283,12 @@ function ColorRushGameComponent() {
             </button>
           </div>
         )}
-
         {/* カウントダウン画面 */}
         {gameState === 'countdown' && (
           <div className='flex h-full items-center justify-center'>
             <div className='text-9xl font-bold text-black'>{countdown || 'START!'}</div>
           </div>
         )}
-
         {/* ゲーム画面 */}
         {gameState === 'playing' && (
           <div className='flex h-full flex-col'>
@@ -352,7 +350,6 @@ function ColorRushGameComponent() {
             </div>
           </div>
         )}
-
         {/* 結果画面（Realtime対応＋ランキング） */}
         {gameState === 'finished' && (
           <div className='flex h-full flex-col items-center justify-center p-4'>
@@ -431,22 +428,20 @@ function ColorRushGameComponent() {
                 </div>
               </div>
             )}
-            </div>
-          )}
-          </main>
 
-          {/* ホームへ戻る */}
-          <div className='mt-8 flex items-center justify-center'>
-            <button
-              type='button'
-              onClick={() => router.push('/')}
-              className='inline-flex items-center justify-center rounded-full bg-slate-900 px-6 py-3 text-sm font-semibold text-white shadow-lg transition hover:bg-slate-800 focus:outline-none focus-visible:ring-4 focus-visible:ring-slate-400/50'
-            >
-              ホームへ戻る
-            </button>
+            {/* ホームへ戻る */}
+            <div className='mt-8 flex items-center justify-center'>
+              <button
+                type='button'
+                onClick={() => router.push('/')}
+                className='inline-flex items-center justify-center rounded-full bg-slate-900 px-6 py-3 text-sm font-semibold text-white shadow-lg transition hover:bg-slate-800 focus:outline-none focus-visible:ring-4 focus-visible:ring-slate-400/50'
+              >
+                ホームへ戻る
+              </button>
+            </div>
           </div>
-        </div>
-      )}
+        )}
+      </main>
     </div>
   );
 }
