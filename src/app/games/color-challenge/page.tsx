@@ -1,7 +1,8 @@
 'use client';
 
-import { useSearchParams } from 'next/navigation';
+import { useSearchParams, useRouter } from 'next/navigation';
 import React, { Suspense, useEffect, useRef, useState } from 'react';
+import Header from '@/components/ui/header';
 
 import { supabase } from '../../../lib/supabase';
 
@@ -45,6 +46,7 @@ function buildLeaderboard<
 
 function ColorRushGameComponent() {
   // ===== 対戦用パラメータ =====
+  const router = useRouter();
   const searchParams = useSearchParams();
   const userId = searchParams.get('userId');
   const roomCode = searchParams.get('roomCode');
@@ -165,7 +167,7 @@ function ColorRushGameComponent() {
       )
       .subscribe();
 
-    return () => {
+  return () => {
       supabase.removeChannel(channel);
     };
   }, [roomId, gameType, totalPlayers]);
@@ -251,181 +253,198 @@ function ColorRushGameComponent() {
   }, [gameState, userId, roomId, gameType, score, totalPlayers]);
 
   return (
-    <div className='flex h-screen flex-col bg-white'>
-      {/* ゲーム開始画面 */}
-      {gameState === 'ready' && (
-        <div className='flex h-full flex-col items-center justify-center p-4'>
-          <h1 className='mb-8 text-4xl font-bold text-black md:text-6xl'>カラーラッシュ</h1>
+    <div className='min-h-screen bg-white'>
+      <Header />
+      
+      <main className='flex flex-col' style={{ height: 'calc(100vh - 80px)' }}>
+        {/* ゲーム開始画面 */}
+        {gameState === 'ready' && (
+          <div className='flex h-full flex-col items-center justify-center p-4'>
+            <h1 className='mb-8 text-4xl font-bold text-black md:text-6xl'>カラーラッシュ</h1>
 
-          <div className='mb-8 max-w-md rounded-2xl bg-gray-100 p-8'>
-            <div className='mb-6 text-center'>
-              <div className='mb-2 text-4xl font-bold text-blue-500'>緑</div>
-              <div className='mb-3 rounded px-3 py-1 text-lg font-bold text-black'>いろ</div>
-              <p className='text-lg text-gray-700'>指示に従って選んでください</p>
-              <p className='mt-2 text-sm text-gray-500'>この場合の答え：青</p>
-              <div className='mt-4 text-sm text-gray-600'>
-                <p>「いろ」→ 文字の色を選択</p>
-                <p>「よみ」→ 文字の内容を選択</p>
-              </div>
-            </div>
-          </div>
-
-          <button
-            onClick={startGame}
-            className='rounded-xl bg-black px-12 py-4 text-2xl font-bold text-white transition-all duration-300 hover:bg-gray-800'
-          >
-            ゲーム開始
-          </button>
-        </div>
-      )}
-
-      {/* カウントダウン画面 */}
-      {gameState === 'countdown' && (
-        <div className='flex h-full items-center justify-center'>
-          <div className='text-9xl font-bold text-black'>{countdown || 'START!'}</div>
-        </div>
-      )}
-
-      {/* ゲーム画面 */}
-      {gameState === 'playing' && (
-        <div className='flex h-full flex-col'>
-          {/* 上部：時間バーとスコア */}
-          <div className='flex items-center justify-between p-4'>
-            <div className='mr-4 h-6 flex-1 rounded-full bg-gray-200'>
-              <div
-                className='h-6 rounded-full bg-blue-500 transition-all duration-1000'
-                style={{ width: `${(timeLeft / 20) * 100}%` }}
-              ></div>
-            </div>
-            <div className='flex h-12 w-12 items-center justify-center rounded-full border-2 border-black bg-white'>
-              <span className='text-lg font-bold'>{timeLeft}</span>
-            </div>
-          </div>
-
-          {/* メイン：4コーナーレイアウト */}
-          <div className='relative flex-1'>
-            {/* 中央の問題表示 */}
-            <div className='pointer-events-none absolute inset-0 z-10 flex items-center justify-center'>
-              <div className='flex h-60 w-60 flex-col items-center justify-center rounded-2xl border-4 border-black bg-white text-center shadow-lg'>
-                <div className={`text-5xl font-bold md:text-6xl ${currentProblem.color} mb-3`}>
-                  {currentProblem.text}
-                </div>
-                <div className='rounded-lg px-3 py-1 text-xl font-bold text-black md:text-2xl'>
-                  {currentProblem.type}
+            <div className='mb-8 max-w-md rounded-2xl bg-gray-100 p-8'>
+              <div className='mb-6 text-center'>
+                <div className='mb-2 text-4xl font-bold text-blue-500'>緑</div>
+                <div className='mb-3 rounded px-3 py-1 text-lg font-bold text-black'>いろ</div>
+                <p className='text-lg text-gray-700'>指示に従って選んでください</p>
+                <p className='mt-2 text-sm text-gray-500'>この場合の答え：青</p>
+                <div className='mt-4 text-sm text-gray-600'>
+                  <p>「いろ」→ 文字の色を選択</p>
+                  <p>「よみ」→ 文字の内容を選択</p>
                 </div>
               </div>
             </div>
 
-            {/* 4つのコーナーボタン */}
             <button
-              onClick={() => selectAnswer('赤')}
-              className='absolute top-0 left-0 flex h-1/2 w-1/2 items-center justify-center bg-red-500 transition-all duration-150 hover:bg-red-600 active:bg-red-700'
+              onClick={startGame}
+              className='rounded-xl bg-black px-12 py-4 text-2xl font-bold text-white transition-all duration-300 hover:bg-gray-800'
             >
-              <span className='text-2xl font-bold text-white opacity-20 md:text-4xl'>赤</span>
-            </button>
-
-            <button
-              onClick={() => selectAnswer('緑')}
-              className='absolute top-0 right-0 flex h-1/2 w-1/2 items-center justify-center bg-green-500 transition-all duration-150 hover:bg-green-600 active:bg-green-700'
-            >
-              <span className='text-2xl font-bold text-white opacity-20 md:text-4xl'>緑</span>
-            </button>
-
-            <button
-              onClick={() => selectAnswer('黄')}
-              className='absolute bottom-0 left-0 flex h-1/2 w-1/2 items-center justify-center bg-yellow-500 transition-all duration-150 hover:bg-yellow-600 active:bg-yellow-700'
-            >
-              <span className='text-2xl font-bold text-white opacity-20 md:text-4xl'>黄</span>
-            </button>
-
-            <button
-              onClick={() => selectAnswer('青')}
-              className='absolute right-0 bottom-0 flex h-1/2 w-1/2 items-center justify-center bg-blue-500 transition-all duration-150 hover:bg-blue-600 active:bg-blue-700'
-            >
-              <span className='text-2xl font-bold text-white opacity-20 md:text-4xl'>青</span>
+              ゲーム開始
             </button>
           </div>
-        </div>
-      )}
+        )}
 
-      {/* 結果画面（Realtime対応＋ランキング） */}
-      {gameState === 'finished' && (
-        <div className='flex h-full flex-col items-center justify-center p-4'>
-          <h2 className='mb-8 text-4xl font-bold text-black md:text-5xl'>結果発表</h2>
+        {/* カウントダウン画面 */}
+        {gameState === 'countdown' && (
+          <div className='flex h-full items-center justify-center'>
+            <div className='text-9xl font-bold text-black'>{countdown || 'START!'}</div>
+          </div>
+        )}
 
-          <div className='mb-8 rounded-2xl bg-gray-100 p-8 text-center'>
-            <div className='mb-4 text-6xl font-bold text-black md:text-7xl'>{score}</div>
-            <div className='mb-2 text-xl font-bold text-black md:text-2xl'>
-              {totalProblems} 問中 {score} 問正解
+        {/* ゲーム画面 */}
+        {gameState === 'playing' && (
+          <div className='flex h-full flex-col'>
+            {/* 上部：時間バーとスコア */}
+            <div className='flex items-center justify-between p-4'>
+              <div className='mr-4 h-6 flex-1 rounded-full bg-gray-200'>
+                <div
+                  className='h-6 rounded-full bg-blue-500 transition-all duration-1000'
+                  style={{ width: `${(timeLeft / 20) * 100}%` }}
+                ></div>
+              </div>
+              <div className='flex h-12 w-12 items-center justify-center rounded-full border-2 border-black bg-white'>
+                <span className='text-lg font-bold'>{timeLeft}</span>
+              </div>
+            </div>
+
+            {/* メイン：4コーナーレイアウト */}
+            <div className='relative flex-1'>
+              {/* 中央の問題表示 */}
+              <div className='pointer-events-none absolute inset-0 z-10 flex items-center justify-center'>
+                <div className='flex h-60 w-60 flex-col items-center justify-center rounded-2xl border-4 border-black bg-white text-center shadow-lg'>
+                  <div className={`text-5xl font-bold md:text-6xl ${currentProblem.color} mb-3`}>
+                    {currentProblem.text}
+                  </div>
+                  <div className='rounded-lg px-3 py-1 text-xl font-bold text-black md:text-2xl'>
+                    {currentProblem.type}
+                  </div>
+                </div>
+              </div>
+
+              {/* 4つのコーナーボタン */}
+              <button
+                onClick={() => selectAnswer('赤')}
+                className='absolute top-0 left-0 flex h-1/2 w-1/2 items-center justify-center bg-red-500 transition-all duration-150 hover:bg-red-600 active:bg-red-700'
+              >
+                <span className='text-2xl font-bold text-white opacity-20 md:text-4xl'>赤</span>
+              </button>
+
+              <button
+                onClick={() => selectAnswer('緑')}
+                className='absolute top-0 right-0 flex h-1/2 w-1/2 items-center justify-center bg-green-500 transition-all duration-150 hover:bg-green-600 active:bg-green-700'
+              >
+                <span className='text-2xl font-bold text-white opacity-20 md:text-4xl'>緑</span>
+              </button>
+
+              <button
+                onClick={() => selectAnswer('黄')}
+                className='absolute bottom-0 left-0 flex h-1/2 w-1/2 items-center justify-center bg-yellow-500 transition-all duration-150 hover:bg-yellow-600 active:bg-yellow-700'
+              >
+                <span className='text-2xl font-bold text-white opacity-20 md:text-4xl'>黄</span>
+              </button>
+
+              <button
+                onClick={() => selectAnswer('青')}
+                className='absolute right-0 bottom-0 flex h-1/2 w-1/2 items-center justify-center bg-blue-500 transition-all duration-150 hover:bg-blue-600 active:bg-blue-700'
+              >
+                <span className='text-2xl font-bold text-white opacity-20 md:text-4xl'>青</span>
+              </button>
             </div>
           </div>
+        )}
 
-          {/* 単体プレイ or 待機 or 最終結果 */}
-          {!roomId || !totalPlayers ? (
-            <p className='text-sm text-slate-600'>
-              ルーム連携なしの単体プレイです。URLに <code>userId</code>, <code>roomCode</code>,{' '}
-              <code>joindUserCount</code> を付けると対戦待ち＆最終結果が有効になります。
-            </p>
-          ) : !allDone ? (
-            <p className='rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700'>
-              他のプレイヤーの完了を待っています…
-              <br />
-              参加人数: {totalPlayers} / 受信済: {gameResults.length}
-            </p>
-          ) : (
-            <div className='mt-6 w-full max-w-xl'>
-              <div className='my-4 rounded-lg border border-gray-300 p-8'>
-                <h2 className='flex justify-center text-4xl font-bold text-black'>
-                  {destinatedStore} に決定！！
-                </h2>
+        {/* 結果画面（Realtime対応＋ランキング） */}
+        {gameState === 'finished' && (
+          <div className='flex h-full flex-col items-center justify-center p-4'>
+            <h2 className='mb-8 text-4xl font-bold text-black md:text-5xl'>結果発表</h2>
+
+            <div className='mb-8 rounded-2xl bg-gray-100 p-8 text-center'>
+              <div className='mb-4 text-6xl font-bold text-black md:text-7xl'>{score}</div>
+              <div className='mb-2 text-xl font-bold text-black md:text-2xl'>
+                {totalProblems} 問中 {score} 問正解
               </div>
-              <h3 className='mb-3 font-semibold text-slate-900'>🏆 最終結果（スコア高い順）</h3>
-              <div className='space-y-2'>
-                {(() => {
-                  const { sorted, ranks } = buildLeaderboard(gameResults, 'desc');
-                  const myIdx = sorted.findIndex(r => r.userId === userId);
-                  const myRank = myIdx >= 0 ? ranks[myIdx] : undefined;
-                  return (
-                    <>
-                      {typeof myRank === 'number' && (
-                        <div className='mb-3 text-sm text-slate-700'>
-                          あなたの順位: <span className='font-bold'>{myRank}位</span>
-                        </div>
-                      )}
-                      {sorted.map((r: GameResultRow, idx: number) => {
-                        const isMe = r.userId === userId;
-                        const rank = ranks[idx];
-                        return (
-                          <div
-                            key={r.id ?? `${r.userId}-${idx}`}
-                            className={`flex items-center justify-between rounded-lg border p-3 ${
-                              isMe
-                                ? 'border-emerald-300 bg-emerald-50'
-                                : 'border-slate-200 bg-slate-50'
-                            }`}
-                          >
-                            <div className='flex items-center gap-3'>
-                              <span className='w-8 text-right text-sm text-slate-500'>
-                                {rank}位
-                              </span>
-                              <span className='font-semibold text-slate-900'>
-                                {r?.user?.name || 'ゲスト'}
-                                {isMe ? '（あなた）' : ''}
-                              </span>
-                            </div>
-                            <div className='text-right'>
-                              <div className='font-bold text-slate-900'>{r?.scores ?? 0}</div>
-                              <div className='text-xs text-slate-500'>スコア</div>
-                            </div>
+            </div>
+
+            {/* 単体プレイ or 待機 or 最終結果 */}
+            {!roomId || !totalPlayers ? (
+              <p className='text-sm text-slate-600'>
+                ルーム連携なしの単体プレイです。URLに <code>userId</code>, <code>roomCode</code>,{' '}
+                <code>joindUserCount</code> を付けると対戦待ち＆最終結果が有効になります。
+              </p>
+            ) : !allDone ? (
+              <p className='rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700'>
+                他のプレイヤーの完了を待っています…
+                <br />
+                参加人数: {totalPlayers} / 受信済: {gameResults.length}
+              </p>
+            ) : (
+              <div className='mt-6 w-full max-w-xl'>
+                <div className='my-4 rounded-lg border border-gray-300 p-8'>
+                  <h2 className='flex justify-center text-4xl font-bold text-black'>
+                    {destinatedStore} に決定！！
+                  </h2>
+                </div>
+                <h3 className='mb-3 font-semibold text-slate-900'>🏆 最終結果（スコア高い順）</h3>
+                <div className='space-y-2'>
+                  {(() => {
+                    const { sorted, ranks } = buildLeaderboard(gameResults, 'desc');
+                    const myIdx = sorted.findIndex(r => r.userId === userId);
+                    const myRank = myIdx >= 0 ? ranks[myIdx] : undefined;
+                    return (
+                      <>
+                        {typeof myRank === 'number' && (
+                          <div className='mb-3 text-sm text-slate-700'>
+                            あなたの順位: <span className='font-bold'>{myRank}位</span>
                           </div>
-                        );
-                      })}
-                    </>
-                  );
-                })()}
+                        )}
+                        {sorted.map((r: GameResultRow, idx: number) => {
+                          const isMe = r.userId === userId;
+                          const rank = ranks[idx];
+                          return (
+                            <div
+                              key={r.id ?? `${r.userId}-${idx}`}
+                              className={`flex items-center justify-between rounded-lg border p-3 ${
+                                isMe
+                                  ? 'border-emerald-300 bg-emerald-50'
+                                  : 'border-slate-200 bg-slate-50'
+                              }`}
+                            >
+                              <div className='flex items-center gap-3'>
+                                <span className='w-8 text-right text-sm text-slate-500'>
+                                  {rank}位
+                                </span>
+                                <span className='font-semibold text-slate-900'>
+                                  {r?.user?.name || 'ゲスト'}
+                                  {isMe ? '（あなた）' : ''}
+                                </span>
+                              </div>
+                              <div className='text-right'>
+                                <div className='font-bold text-slate-900'>{r?.scores ?? 0}</div>
+                                <div className='text-xs text-slate-500'>スコア</div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </>
+                    );
+                  })()}
+                </div>
               </div>
+            )}
             </div>
           )}
+          </main>
+
+          {/* ホームへ戻る */}
+          <div className='mt-8 flex items-center justify-center'>
+            <button
+              type='button'
+              onClick={() => router.push('/')}
+              className='inline-flex items-center justify-center rounded-full bg-slate-900 px-6 py-3 text-sm font-semibold text-white shadow-lg transition hover:bg-slate-800 focus:outline-none focus-visible:ring-4 focus-visible:ring-slate-400/50'
+            >
+              ホームへ戻る
+            </button>
+          </div>
         </div>
       )}
     </div>
