@@ -338,7 +338,6 @@ function ClickGameContent() {
                         </div>
                       </div>
                     </div>
-                  </div>
                   ))}
                 </div>
 
