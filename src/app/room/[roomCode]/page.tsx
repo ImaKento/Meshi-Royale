@@ -86,7 +86,6 @@ function RoomPage({ params }: { params: Promise<{ roomCode: string }> }) {
   // render 時も安全側で並べ替え（取得時ソートしているなら省略可）
   const sortedRoomUsers = sortRoomUsers(roomUsers);
 
-
   // 自分のユーザー情報を読み込み（GET /api/users/:id）
   useEffect(() => {
     const fetchMe = async () => {
@@ -287,7 +286,7 @@ function RoomPage({ params }: { params: Promise<{ roomCode: string }> }) {
             </h2>
           </div>
 
-          <div className="space-y-3">
+          <div className='space-y-3'>
             {sortedRoomUsers.map((ru, idx) => {
               const readOnly = ru.userId !== selfUserId;
               return (
