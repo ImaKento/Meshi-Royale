@@ -1,6 +1,6 @@
 'use client';
 
-import { useSearchParams } from 'next/navigation';
+import { useSearchParams, useRouter } from 'next/navigation';
 import React, { Suspense, useEffect, useRef, useState } from 'react';
 import Header from '@/components/ui/header';
 
@@ -46,6 +46,7 @@ function buildLeaderboard<
 
 function ColorRushGameComponent() {
   // ===== 対戦用パラメータ =====
+  const router = useRouter();
   const searchParams = useSearchParams();
   const userId = searchParams.get('userId');
   const roomCode = searchParams.get('roomCode');
@@ -166,7 +167,7 @@ function ColorRushGameComponent() {
       )
       .subscribe();
 
-    return () => {
+  return () => {
       supabase.removeChannel(channel);
     };
   }, [roomId, gameType, totalPlayers]);
@@ -430,9 +431,22 @@ function ColorRushGameComponent() {
                 </div>
               </div>
             )}
+            </div>
+          )}
+          </main>
+
+          {/* ホームへ戻る */}
+          <div className='mt-8 flex items-center justify-center'>
+            <button
+              type='button'
+              onClick={() => router.push('/')}
+              className='inline-flex items-center justify-center rounded-full bg-slate-900 px-6 py-3 text-sm font-semibold text-white shadow-lg transition hover:bg-slate-800 focus:outline-none focus-visible:ring-4 focus-visible:ring-slate-400/50'
+            >
+              ホームへ戻る
+            </button>
           </div>
-        )}
-      </main>
+        </div>
+      )}
     </div>
   );
 }
