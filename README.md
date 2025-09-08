@@ -9,7 +9,7 @@
 
 ## 🏆 受賞歴
 
-- **ハッカソン審査員特別賞受賞**
+- **RSS Hackathon 2025 Beyond 審査員特別賞受賞**
 - チーム開発による短期間での高品質なアプリケーション開発
 
 ## ✨ プロジェクトの特徴
@@ -33,7 +33,6 @@
 
 #### アーキテクチャ設計
 
-- **RESTful API設計**: 明確な責務分離
 - **リアルタイム同期**: WebSocketベースの即座な状態共有
 - **状態管理**: Zustandによる軽量で型安全な状態管理
 - **レスポンシブデザイン**: モバイルファーストアプローチ
@@ -72,8 +71,8 @@ GameResults (スコア管理・ランキング)
 1. **リポジトリのクローン**
 
 ```bash
-git clone https://github.com/ImaKento/Tanaka-strong-hold.git
-cd Tanaka-strong-hold
+git clone https://github.com/ImaKento/Meshi-Royale.git
+cd Meshi-Royale
 ```
 
 2. **依存関係のインストール**
@@ -86,8 +85,8 @@ npm install
 
 ```bash
 # .env.localファイルを作成
-DATABASE_URL="postgresql://username:password@localhost:5432/meshi_royale"
-DIRECT_URL="postgresql://username:password@localhost:5432/meshi_royale"
+DATABASE_URL="supabase_database_url"
+DIRECT_URL="supabase_database_url"
 HOTPEPPER_API_KEY="your_hotpepper_api_key"
 NEXT_PUBLIC_SUPABASE_URL="your_supabase_url"
 NEXT_PUBLIC_SUPABASE_ANON_KEY="your_supabase_anon_key"
@@ -256,28 +255,32 @@ External APIs (Hot Pepper)
 ### 主要ディレクトリの役割
 
 #### `src/app/` - Next.js App Router
+
 - **フロントエンド**: ページコンポーネントとレイアウト
 - **バックエンド**: API Routes による サーバーサイド処理
 - **ルーティング**: ファイルベースのルーティングシステム
 
 #### `src/components/` - UIコンポーネント
+
 - **ui/**: Radix UI + Tailwind CSS による基本コンポーネント
 - **userCard.tsx**: 複合的なユーザー表示コンポーネント
 - **再利用性**: 型安全で一貫性のあるUI設計
 
 #### `src/lib/` - ライブラリとユーティリティ
+
 - **prisma.ts**: データベース接続のシングルトン管理
 - **supabase.ts**: リアルタイム通信の設定
 - **utils.ts**: 共通的な処理関数
 
 #### `prisma/` - データベース管理
+
 - **schema.prisma**: 型安全なスキーマ定義
 - **migrations/**: バージョン管理されたDB変更履歴
 - **自動生成**: TypeScript型との完全同期
 
 ---
 
-**開発期間**: ハッカソン期間内（2-3日）  
+**開発期間**: ハッカソン期間内（2日）  
 **チーム構成**: フルスタック開発  
 **デプロイ環境**: Vercel + Supabase
 
