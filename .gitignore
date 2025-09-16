@@ -37,4 +37,9 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
+# mcp server settings
+.mcp.json
+
+.env
+
 /src/generated/prisma
