@@ -2,6 +2,9 @@
 
 **RSS Hackathon 2025 Beyond 審査員特別賞受賞作品**
 
+## アプリURL
+飯ロワイヤル：[https://test-hack-rho.vercel.app/](https://test-hack-rho.vercel.app/)
+
 多人数で楽しめるリアルタイム対戦ゲームアプリケーションです。  
 ゲームの勝敗でレストランを決定する、新しい食事選択体験を提供します。
 
